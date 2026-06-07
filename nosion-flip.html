@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>노시언 플립워치 위젯</title>
+<style>
+/* ===== 노시언 위젯 공용 기반 CSS ===== */
+:root{
+  --ink:#37352f; --ink2:rgba(55,53,47,.62); --ink3:rgba(55,53,47,.4); --ink4:rgba(55,53,47,.24);
+  --line:rgba(55,53,47,.11); --line2:rgba(55,53,47,.06); --fill:rgba(55,53,47,.045);
+  --card:#ffffff; --cardb:rgba(55,53,47,.11);
+  --accent:#37352f; --on:#ffffff; --red:#d6483c; --up:#c0392b; --down:#2f6f4e;
+  --handle:rgba(55,53,47,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --ink:#e9e7e3; --ink2:rgba(233,231,227,.62); --ink3:rgba(233,231,227,.4); --ink4:rgba(233,231,227,.22);
+    --line:rgba(233,231,227,.13); --line2:rgba(233,231,227,.07); --fill:rgba(233,231,227,.06);
+    --card:#1f1e1c; --cardb:rgba(233,231,227,.12);
+    --accent:#e9e7e3; --on:#23211e; --red:#ff7369; --up:#ff7369; --down:#4caf86;
+    --handle:rgba(233,231,227,.32);
+  }
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+html,body{background:transparent; height:100%;}
+body{
+  font-family:'Pretendard','Apple SD Gothic Neo',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  color:var(--ink); -webkit-font-smoothing:antialiased; overflow:hidden; height:100%;
+}
+.stage{position:fixed; inset:0;}
+
+.card{
+  position:absolute; background:var(--card); border:1px solid var(--cardb); border-radius:16px;
+  padding:18px; display:flex; flex-direction:column; box-shadow:0 1px 2px rgba(55,53,47,.04);
+  touch-action:none; container-type:size;
+}
+.card.dragging, .card.resizing{box-shadow:0 12px 36px rgba(55,53,47,.16); user-select:none;}
+
+.whead{display:flex; align-items:center; justify-content:space-between; gap:10px; flex:none; margin-bottom:13px; cursor:grab;}
+.whead:active{cursor:grabbing;}
+.wname{font-size:13.5px; font-weight:600; letter-spacing:-.01em; display:flex; align-items:center; gap:7px; white-space:nowrap;}
+.wname .wic{color:var(--ink3); display:flex;}
+.wname .wic svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+.wsub{font-size:11.5px; color:var(--ink3); font-weight:500; white-space:nowrap;}
+
+.wbody{flex:1; display:flex; flex-direction:column; justify-content:center; min-height:0;}
+
+.wfoot{flex:none; font-size:11px; color:var(--ink3); margin-top:12px; padding-top:12px; border-top:1px solid var(--line2);
+  display:flex; align-items:center; justify-content:space-between; gap:8px;}
+
+.seg{display:inline-flex; background:var(--fill); border-radius:8px; padding:2px; gap:2px; flex:none;}
+.seg button{border:0; background:transparent; font:inherit; font-size:11px; font-weight:600; color:var(--ink3);
+  padding:4px 9px; border-radius:6px; cursor:pointer; transition:.15s; letter-spacing:-.01em; white-space:nowrap;}
+.seg button.on{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(55,53,47,.12);}
+
+.ic{width:30px; height:30px; border-radius:8px; border:1px solid var(--line); background:transparent;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink2); transition:.15s; flex:none;}
+.ic:hover{background:var(--fill); color:var(--ink);}
+.ic:active{transform:scale(.92);}
+.ic svg{width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+.pill{font-size:11.5px; font-weight:600; color:var(--ink2); border:1px solid var(--line); border-radius:999px;
+  padding:5px 11px; cursor:pointer; transition:.15s; white-space:nowrap; background:transparent; display:inline-flex; align-items:center; gap:6px;}
+.pill:hover{background:var(--fill);}
+.pill.on, .pill.dark{background:var(--accent); color:var(--on); border-color:var(--accent);}
+
+.mono{font-variant-numeric:tabular-nums; font-feature-settings:"tnum";}
+
+/* 리사이즈 핸들 (frame.js가 주입) */
+.rz{position:absolute; z-index:5;}
+.rz.n{top:-4px; left:10px; right:10px; height:8px; cursor:ns-resize;}
+.rz.s{bottom:-4px; left:10px; right:10px; height:8px; cursor:ns-resize;}
+.rz.e{right:-4px; top:10px; bottom:10px; width:8px; cursor:ew-resize;}
+.rz.w{left:-4px; top:10px; bottom:10px; width:8px; cursor:ew-resize;}
+.rz.ne{top:-5px; right:-5px; width:14px; height:14px; cursor:nesw-resize;}
+.rz.nw{top:-5px; left:-5px; width:14px; height:14px; cursor:nwse-resize;}
+.rz.se{bottom:-5px; right:-5px; width:14px; height:14px; cursor:nwse-resize;}
+.rz.sw{bottom:-5px; left:-5px; width:14px; height:14px; cursor:nesw-resize;}
+.rz.corner::after{content:''; position:absolute; inset:4px; border-radius:50%; background:var(--handle); opacity:0; transition:.15s;}
+.card:hover .rz.corner::after{opacity:1;}
+
+.flip{display:flex;gap:4cqmin;justify-content:center;align-items:center;height:100%;}
+.flip-c{background:var(--flipbg,#2b2a28);border:1px solid rgba(255,255,255,.06);border-radius:clamp(7px,2.6cqmin,18px);color:#fff;position:relative;display:flex;align-items:center;justify-content:center;width:25cqmin;height:39cqmin;min-width:52px;min-height:74px;}
+.flip-c::after{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(0,0,0,.45);}
+.flip-d{font-size:clamp(32px,24cqmin,210px);font-weight:800;letter-spacing:-.02em;line-height:1;}
+.flip-anim{display:inline-block;animation:fin .32s cubic-bezier(.3,.8,.4,1);}
+@keyframes fin{0%{transform:translateY(-40%) scaleY(.6);opacity:.2}60%{transform:translateY(5%) scaleY(1.04)}100%{transform:none;opacity:1}}
+.flip-colon{font-size:clamp(22px,11cqmin,100px);font-weight:800;color:var(--ink3);line-height:1;}
+
+  /* 기본 크기 리셋 버튼 (테두리 바깥 오른쪽 위, 호버 시 표시) */
+  .wreset{position:absolute; top:6px; right:-38px; width:28px; height:28px; border-radius:50%;
+    border:1px solid var(--cardb); background:var(--card); color:var(--ink2);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    opacity:0; pointer-events:none; transition:opacity .15s, color .15s, background .15s, transform .1s;
+    box-shadow:0 2px 8px rgba(55,53,47,.14); z-index:6; padding:0;}
+  .wreset:hover{color:var(--ink); background:var(--fill);}
+  .wreset:active{transform:scale(.9);}
+  .wreset svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+  /* 색상 선택 (리사이즈 버튼 아래, 호버 시) */
+  .wtone{position:absolute; top:42px; right:-38px; display:flex; flex-direction:column; gap:6px; z-index:6;
+    opacity:0; pointer-events:none; transition:opacity .15s;}
+  .wtone button{width:28px; height:28px; border-radius:50%; border:1px solid var(--cardb); cursor:pointer;
+    background:var(--sw); padding:0; box-shadow:0 2px 8px rgba(55,53,47,.14); transition:transform .1s;}
+  .wtone button:active{transform:scale(.9);}
+  .wtone button.on{box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--ink3);}
+  .card.ctl-on .wreset, .card.ctl-on .wtone{opacity:1; pointer-events:auto;}
+
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="card" id="w">
+    <div class="whead">
+      <div class="wname">플립워치</div>
+      <div class="seg" id="seg"><button data-h="24">24H</button><button data-h="12">12H</button></div>
+    </div>
+    <div class="wbody" id="body"><div class="flip" id="flip"></div></div>
+    
+  </div>
+</div>
+<script>
+/* ===== 노시언 위젯 공용 프레임 — 드래그 이동 + 8방향 리사이즈 + 위치/크기 저장 ===== */
+(function(){
+  function init(opts){
+    opts = opts || {};
+    var card = opts.card || document.querySelector('.card');
+    var head = opts.head || card.querySelector('.whead');
+    var KEY  = opts.key || 'nosion-frame';
+    var MINW = opts.minW || 230, MINH = opts.minH || 210;
+    var DEFW = opts.defaultW || 340, DEFH = opts.defaultH || 300;
+
+    // 핸들 주입
+    ['n','s','e','w','ne','nw','se','sw'].forEach(function(d){
+      var el = document.createElement('div');
+      el.className = 'rz ' + d + (d.length===2 ? ' corner' : '');
+      el.setAttribute('data-rz', d);
+      card.appendChild(el);
+    });
+
+    var frame = loadFrame();
+    function loadFrame(){
+      try { var f = JSON.parse(localStorage.getItem(KEY)); if (f && f.w) return f; } catch(e){}
+      var w = Math.min(DEFW, window.innerWidth - 28);
+      var h = Math.min(DEFH, window.innerHeight - 28);
+      return { x:(window.innerWidth-w)/2, y:Math.max(14,(window.innerHeight-h)/2), w:w, h:h };
+    }
+    function clampFrame(){
+      frame.w = Math.max(MINW, Math.min(frame.w, window.innerWidth - 8));
+      frame.h = Math.max(MINH, Math.min(frame.h, window.innerHeight - 8));
+      frame.x = Math.max(4, Math.min(frame.x, window.innerWidth - frame.w - 4));
+      frame.y = Math.max(4, Math.min(frame.y, window.innerHeight - frame.h - 4));
+    }
+    function applyFrame(){
+      clampFrame();
+      card.style.left=frame.x+'px'; card.style.top=frame.y+'px';
+      card.style.width=frame.w+'px'; card.style.height=frame.h+'px';
+    }
+    function saveFrame(){ try{ localStorage.setItem(KEY, JSON.stringify(frame)); }catch(e){} }
+
+    // 드래그 이동 (헤더). 버튼·세그·인터랙션 요소 위에서는 무시
+    head.addEventListener('pointerdown', function(e){
+      if (e.target.closest('.seg, .ic, .pill, button, input, a, [data-nodrag]')) return;
+      startDrag(e);
+    });
+    card.querySelectorAll('.rz').forEach(function(hd){
+      hd.addEventListener('pointerdown', function(e){ startResize(e, hd.getAttribute('data-rz')); });
+    });
+    function startDrag(e){
+      e.preventDefault(); card.classList.add('dragging');
+      var sx=e.clientX, sy=e.clientY, ox=frame.x, oy=frame.y;
+      function move(ev){ frame.x=ox+(ev.clientX-sx); frame.y=oy+(ev.clientY-sy); applyFrame(); }
+      function up(){ card.classList.remove('dragging'); saveFrame(); document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); }
+      document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+    }
+    function startResize(e, dir){
+      e.preventDefault(); e.stopPropagation(); card.classList.add('resizing');
+      var sx=e.clientX, sy=e.clientY, o={x:frame.x,y:frame.y,w:frame.w,h:frame.h};
+      function move(ev){
+        var dx=ev.clientX-sx, dy=ev.clientY-sy;
+        if (dir.indexOf('e')>=0){ frame.w=Math.max(MINW,o.w+dx); }
+        if (dir.indexOf('s')>=0){ frame.h=Math.max(MINH,o.h+dy); }
+        if (dir.indexOf('w')>=0){ var nw=Math.max(MINW,o.w-dx); frame.x=o.x+(o.w-nw); frame.w=nw; }
+        if (dir.indexOf('n')>=0){ var nh=Math.max(MINH,o.h-dy); frame.y=o.y+(o.h-nh); frame.h=nh; }
+        applyFrame();
+      }
+      function up(){ card.classList.remove('resizing'); saveFrame(); document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); }
+      document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+    }
+    window.addEventListener('resize', applyFrame);
+    applyFrame();
+  }
+  window.NosionFrame = { init: init };
+})();
+
+</script>
+<script>
+(function(){
+  var pref={h24:true}; try{var p=JSON.parse(localStorage.getItem('nosion-flip-pref'));if(p)pref=Object.assign(pref,p);}catch(e){}
+  function pad(n){return String(n).padStart(2,'0');}
+  var prev='';
+  function tick(){
+    var n=new Date();var h=n.getHours();if(!pref.h24){h=h%12||12;}
+    var s=pad(h)+pad(n.getMinutes());var d=s.split('');
+    var html='';
+    function box(ch,i){var anim=(d[i]!==prev[i])?' flip-anim':'';return '<div class="flip-c"><span class="flip-d mono"><span class="'+(anim?'flip-anim':'')+'" >'+ch+'</span></span></div>';}
+    html+=box(d[0],0)+box(d[1],1)+'<span class="flip-colon">:</span>'+box(d[2],2)+box(d[3],3);
+    document.getElementById('flip').innerHTML=html;prev=d.join('');
+  }
+  function sync(){document.querySelectorAll('#seg button').forEach(function(b){b.classList.toggle('on',(b.getAttribute('data-h')==='24')===pref.h24);});}
+  document.querySelectorAll('#seg button').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();pref.h24=b.getAttribute('data-h')==='24';try{localStorage.setItem('nosion-flip-pref',JSON.stringify(pref));}catch(e){}sync();prev='';tick();});});
+  sync();tick();setInterval(tick,1000);
+})();
+NosionFrame.init({ card: document.getElementById('w'), key:'nosion-flip-frame', minW:240, minH:150, defaultW:340, defaultH:200 });
+</script>
+<script>
+(function(){
+  var root=document.getElementById('w'); if(!root) return;
+  var btn=document.createElement('button');
+  btn.className='wreset'; btn.title='기본 크기로';
+  btn.setAttribute('aria-label','기본 크기로');
+  btn.innerHTML='<svg viewBox="0 0 24 24"><path d="M9 21H3v-6M3 21l7-7M15 3h6v6M21 3l-7 7"/></svg>';
+  btn.addEventListener('pointerdown',function(e){e.stopPropagation();});
+  btn.addEventListener('click',function(e){e.stopPropagation();try{localStorage.removeItem('nosion-flip-frame');}catch(_){}location.reload();});
+  root.appendChild(btn);
+  // 색상 선택 (검정/회색/진회색)
+  var TONES={black:'#2b2a28', gray:'#7e7b75', dim:'#4a4844'};
+  var LABEL={black:'검정', gray:'회색', dim:'진회색'};
+  var tone=document.createElement('div'); tone.className='wtone';
+  Object.keys(TONES).forEach(function(k){
+    var b=document.createElement('button'); b.setAttribute('data-tone',k); b.title=LABEL[k];
+    b.style.setProperty('--sw',TONES[k]);
+    b.addEventListener('pointerdown',function(e){e.stopPropagation();});
+    b.addEventListener('click',function(e){e.stopPropagation();setTone(k);});
+    tone.appendChild(b);
+  });
+  root.appendChild(tone);
+  function setTone(k){
+    root.style.setProperty('--flipbg',TONES[k]);
+    try{localStorage.setItem('nosion-flip-tone',k);}catch(_){}
+    tone.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-tone')===k);});
+  }
+  var savedTone='black'; try{savedTone=localStorage.getItem('nosion-flip-tone')||'black';}catch(_){}
+  setTone(savedTone);
+  var hideT;
+  function show(){clearTimeout(hideT);root.classList.add('ctl-on');}
+  function hideSoon(){hideT=setTimeout(function(){root.classList.remove('ctl-on');},260);}
+  root.addEventListener('pointerenter',show);
+  root.addEventListener('pointerleave',hideSoon);
+  btn.addEventListener('pointerenter',show); btn.addEventListener('pointerleave',hideSoon);
+  tone.addEventListener('pointerenter',show); tone.addEventListener('pointerleave',hideSoon);
+})();
+</script>
+</body>
+</html>

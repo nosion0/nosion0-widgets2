@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>노시언 환율 위젯</title>
+<style>
+/* ===== 노시언 위젯 공용 기반 CSS ===== */
+:root{
+  --ink:#37352f; --ink2:rgba(55,53,47,.62); --ink3:rgba(55,53,47,.4); --ink4:rgba(55,53,47,.24);
+  --line:rgba(55,53,47,.11); --line2:rgba(55,53,47,.06); --fill:rgba(55,53,47,.045);
+  --card:#ffffff; --cardb:rgba(55,53,47,.11);
+  --accent:#37352f; --on:#ffffff; --red:#d6483c; --up:#c0392b; --down:#2f6f4e;
+  --handle:rgba(55,53,47,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --ink:#e9e7e3; --ink2:rgba(233,231,227,.62); --ink3:rgba(233,231,227,.4); --ink4:rgba(233,231,227,.22);
+    --line:rgba(233,231,227,.13); --line2:rgba(233,231,227,.07); --fill:rgba(233,231,227,.06);
+    --card:#1f1e1c; --cardb:rgba(233,231,227,.12);
+    --accent:#e9e7e3; --on:#23211e; --red:#ff7369; --up:#ff7369; --down:#4caf86;
+    --handle:rgba(233,231,227,.32);
+  }
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+html,body{background:transparent; height:100%;}
+body{
+  font-family:'Pretendard','Apple SD Gothic Neo',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  color:var(--ink); -webkit-font-smoothing:antialiased; overflow:hidden; height:100%;
+}
+.stage{position:fixed; inset:0;}
+
+.card{
+  position:absolute; background:var(--card); border:1px solid var(--cardb); border-radius:16px;
+  padding:18px; display:flex; flex-direction:column; box-shadow:0 1px 2px rgba(55,53,47,.04);
+  touch-action:none; container-type:size;
+}
+.card.dragging, .card.resizing{box-shadow:0 12px 36px rgba(55,53,47,.16); user-select:none;}
+
+.whead{display:flex; align-items:center; justify-content:space-between; gap:10px; flex:none; margin-bottom:13px; cursor:grab;}
+.whead:active{cursor:grabbing;}
+.wname{font-size:13.5px; font-weight:600; letter-spacing:-.01em; display:flex; align-items:center; gap:7px; white-space:nowrap;}
+.wname .wic{color:var(--ink3); display:flex;}
+.wname .wic svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+.wsub{font-size:11.5px; color:var(--ink3); font-weight:500; white-space:nowrap;}
+
+.wbody{flex:1; display:flex; flex-direction:column; justify-content:center; min-height:0;}
+
+.wfoot{flex:none; font-size:11px; color:var(--ink3); margin-top:12px; padding-top:12px; border-top:1px solid var(--line2);
+  display:flex; align-items:center; justify-content:space-between; gap:8px;}
+
+.seg{display:inline-flex; background:var(--fill); border-radius:8px; padding:2px; gap:2px; flex:none;}
+.seg button{border:0; background:transparent; font:inherit; font-size:11px; font-weight:600; color:var(--ink3);
+  padding:4px 9px; border-radius:6px; cursor:pointer; transition:.15s; letter-spacing:-.01em; white-space:nowrap;}
+.seg button.on{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(55,53,47,.12);}
+
+.ic{width:30px; height:30px; border-radius:8px; border:1px solid var(--line); background:transparent;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink2); transition:.15s; flex:none;}
+.ic:hover{background:var(--fill); color:var(--ink);}
+.ic:active{transform:scale(.92);}
+.ic svg{width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+.pill{font-size:11.5px; font-weight:600; color:var(--ink2); border:1px solid var(--line); border-radius:999px;
+  padding:5px 11px; cursor:pointer; transition:.15s; white-space:nowrap; background:transparent; display:inline-flex; align-items:center; gap:6px;}
+.pill:hover{background:var(--fill);}
+.pill.on, .pill.dark{background:var(--accent); color:var(--on); border-color:var(--accent);}
+
+.mono{font-variant-numeric:tabular-nums; font-feature-settings:"tnum";}
+
+/* 리사이즈 핸들 (frame.js가 주입) */
+.rz{position:absolute; z-index:5;}
+.rz.n{top:-4px; left:10px; right:10px; height:8px; cursor:ns-resize;}
+.rz.s{bottom:-4px; left:10px; right:10px; height:8px; cursor:ns-resize;}
+.rz.e{right:-4px; top:10px; bottom:10px; width:8px; cursor:ew-resize;}
+.rz.w{left:-4px; top:10px; bottom:10px; width:8px; cursor:ew-resize;}
+.rz.ne{top:-5px; right:-5px; width:14px; height:14px; cursor:nesw-resize;}
+.rz.nw{top:-5px; left:-5px; width:14px; height:14px; cursor:nwse-resize;}
+.rz.se{bottom:-5px; right:-5px; width:14px; height:14px; cursor:nwse-resize;}
+.rz.sw{bottom:-5px; left:-5px; width:14px; height:14px; cursor:nesw-resize;}
+.rz.corner::after{content:''; position:absolute; inset:4px; border-radius:50%; background:var(--handle); opacity:0; transition:.15s;}
+.card:hover .rz.corner::after{opacity:1;}
+
+.fx{display:flex;flex-direction:column;height:100%;position:relative;}
+.fx-list{flex:1;overflow-y:auto;min-height:0;}
+.fx-list::-webkit-scrollbar{width:5px;}.fx-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+.fx-row{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line2);}
+.fx-row:last-child{border-bottom:0;}
+.fx-flag{width:30px;height:30px;border-radius:8px;background:var(--fill);display:flex;align-items:center;justify-content:center;font-size:15px;flex:none;}
+.fx-code{font-size:13px;font-weight:700;}
+.fx-name{font-size:10.5px;color:var(--ink3);}
+.fx-v{margin-left:auto;text-align:right;}
+.fx-vv{font-size:14px;font-weight:700;letter-spacing:-.01em;}
+.fx-vc{font-size:10.5px;font-weight:600;}
+.up{color:var(--ink);}.down{color:var(--ink3);}
+.fx-rm{flex:0 0 16px;width:16px;height:16px;border:0;background:transparent;color:var(--ink3);cursor:pointer;opacity:0;border-radius:5px;display:flex;align-items:center;justify-content:center;padding:0;margin-left:4px;transition:.12s;}
+.fx-row:hover .fx-rm{opacity:1;}.fx-rm:hover{color:var(--ink);background:var(--fill);}
+.fx-rm svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;}
+.fx-add{flex:none;position:relative;max-height:0;opacity:0;pointer-events:none;transition:max-height .18s, opacity .18s, margin .18s;margin-top:0;}
+.card:hover .fx-add, .fx-add:focus-within{max-height:50px;opacity:1;pointer-events:auto;margin-top:8px;}
+.fx-search{width:100%;border:1px solid var(--line);background:transparent;border-radius:9px;padding:8px 11px;font:inherit;font-size:12px;color:var(--ink);outline:none;}
+.fx-search::placeholder{color:var(--ink4);}
+.fx-search:focus{border-color:var(--ink3);}
+.fx-results{position:absolute;left:0;right:0;bottom:calc(100% + 6px);background:var(--card);border:1px solid var(--cardb);border-radius:10px;box-shadow:0 8px 24px rgba(55,53,47,.16);max-height:180px;overflow-y:auto;display:none;z-index:8;}
+.fx-results.show{display:block;}
+.fx-res{display:flex;align-items:center;gap:9px;padding:8px 11px;cursor:pointer;font-size:12px;}
+.fx-res:hover{background:var(--fill);}
+.fx-res .rf{font-size:15px;flex:0 0 auto;}
+.fx-res .rc{font-weight:700;flex:0 0 auto;}
+.fx-res .rn{color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fx-empty{font-size:11px;color:var(--ink4);text-align:center;padding:10px;}
+
+  /* 기본 크기 리셋 버튼 (테두리 바깥 오른쪽 위, 호버 시 표시) */
+  .wreset{position:absolute; top:6px; right:-38px; width:28px; height:28px; border-radius:50%;
+    border:1px solid var(--cardb); background:var(--card); color:var(--ink2);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    opacity:0; pointer-events:none; transition:opacity .15s, color .15s, background .15s, transform .1s;
+    box-shadow:0 2px 8px rgba(55,53,47,.14); z-index:6; padding:0;}
+  .wreset:hover{color:var(--ink); background:var(--fill);}
+  .wreset:active{transform:scale(.9);}
+  .wreset svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="card" id="w">
+    <div class="whead">
+      <div class="wname">환율</div>
+      <div class="wsub">원(KRW) 기준</div>
+    </div>
+    <div class="wbody" id="body"><div class="fx">
+      <div class="fx-list" id="fx"></div>
+      <div class="fx-add"><input class="fx-search" id="search" placeholder="통화 추가 (달러, GBP…)" maxlength="20"><div class="fx-results" id="results"></div></div>
+    </div></div>
+    
+  </div>
+</div>
+<script>
+/* ===== 노시언 위젯 공용 프레임 — 드래그 이동 + 8방향 리사이즈 + 위치/크기 저장 ===== */
+(function(){
+  function init(opts){
+    opts = opts || {};
+    var card = opts.card || document.querySelector('.card');
+    var head = opts.head || card.querySelector('.whead');
+    var KEY  = opts.key || 'nosion-frame';
+    var MINW = opts.minW || 230, MINH = opts.minH || 210;
+    var DEFW = opts.defaultW || 340, DEFH = opts.defaultH || 300;
+
+    // 핸들 주입
+    ['n','s','e','w','ne','nw','se','sw'].forEach(function(d){
+      var el = document.createElement('div');
+      el.className = 'rz ' + d + (d.length===2 ? ' corner' : '');
+      el.setAttribute('data-rz', d);
+      card.appendChild(el);
+    });
+
+    var frame = loadFrame();
+    function loadFrame(){
+      try { var f = JSON.parse(localStorage.getItem(KEY)); if (f && f.w) return f; } catch(e){}
+      var w = Math.min(DEFW, window.innerWidth - 28);
+      var h = Math.min(DEFH, window.innerHeight - 28);
+      return { x:(window.innerWidth-w)/2, y:Math.max(14,(window.innerHeight-h)/2), w:w, h:h };
+    }
+    function clampFrame(){
+      frame.w = Math.max(MINW, Math.min(frame.w, window.innerWidth - 8));
+      frame.h = Math.max(MINH, Math.min(frame.h, window.innerHeight - 8));
+      frame.x = Math.max(4, Math.min(frame.x, window.innerWidth - frame.w - 4));
+      frame.y = Math.max(4, Math.min(frame.y, window.innerHeight - frame.h - 4));
+    }
+    function applyFrame(){
+      clampFrame();
+      card.style.left=frame.x+'px'; card.style.top=frame.y+'px';
+      card.style.width=frame.w+'px'; card.style.height=frame.h+'px';
+    }
+    function saveFrame(){ try{ localStorage.setItem(KEY, JSON.stringify(frame)); }catch(e){} }
+
+    // 드래그 이동 (헤더). 버튼·세그·인터랙션 요소 위에서는 무시
+    head.addEventListener('pointerdown', function(e){
+      if (e.target.closest('.seg, .ic, .pill, button, input, a, [data-nodrag]')) return;
+      startDrag(e);
+    });
+    card.querySelectorAll('.rz').forEach(function(hd){
+      hd.addEventListener('pointerdown', function(e){ startResize(e, hd.getAttribute('data-rz')); });
+    });
+    function startDrag(e){
+      e.preventDefault(); card.classList.add('dragging');
+      var sx=e.clientX, sy=e.clientY, ox=frame.x, oy=frame.y;
+      function move(ev){ frame.x=ox+(ev.clientX-sx); frame.y=oy+(ev.clientY-sy); applyFrame(); }
+      function up(){ card.classList.remove('dragging'); saveFrame(); document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); }
+      document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+    }
+    function startResize(e, dir){
+      e.preventDefault(); e.stopPropagation(); card.classList.add('resizing');
+      var sx=e.clientX, sy=e.clientY, o={x:frame.x,y:frame.y,w:frame.w,h:frame.h};
+      function move(ev){
+        var dx=ev.clientX-sx, dy=ev.clientY-sy;
+        if (dir.indexOf('e')>=0){ frame.w=Math.max(MINW,o.w+dx); }
+        if (dir.indexOf('s')>=0){ frame.h=Math.max(MINH,o.h+dy); }
+        if (dir.indexOf('w')>=0){ var nw=Math.max(MINW,o.w-dx); frame.x=o.x+(o.w-nw); frame.w=nw; }
+        if (dir.indexOf('n')>=0){ var nh=Math.max(MINH,o.h-dy); frame.y=o.y+(o.h-nh); frame.h=nh; }
+        applyFrame();
+      }
+      function up(){ card.classList.remove('resizing'); saveFrame(); document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); }
+      document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+    }
+    window.addEventListener('resize', applyFrame);
+    applyFrame();
+  }
+  window.NosionFrame = { init: init };
+})();
+
+</script>
+<script>
+(function(){
+  var CATALOG=[
+    {f:'🇺🇸',c:'USD',n:'미국 달러',v:'1,386.50',ch:'2.30',d:1},
+    {f:'🇯🇵',c:'JPY',n:'일본 100엔',v:'885.20',ch:'1.10',d:-1},
+    {f:'🇪🇺',c:'EUR',n:'유로',v:'1,498.70',ch:'3.40',d:1},
+    {f:'🇨🇳',c:'CNY',n:'중국 위안',v:'191.40',ch:'0.20',d:1},
+    {f:'🇬🇧',c:'GBP',n:'영국 파운드',v:'1,758.30',ch:'4.10',d:1},
+    {f:'🇨🇭',c:'CHF',n:'스위스 프랑',v:'1,562.80',ch:'2.70',d:-1},
+    {f:'🇦🇺',c:'AUD',n:'호주 달러',v:'912.40',ch:'1.60',d:1},
+    {f:'🇨🇦',c:'CAD',n:'캐나다 달러',v:'1,012.50',ch:'0.90',d:-1},
+    {f:'🇭🇰',c:'HKD',n:'홍콩 달러',v:'177.80',ch:'0.30',d:1},
+    {f:'🇸🇬',c:'SGD',n:'싱가포르 달러',v:'1,028.60',ch:'1.20',d:1},
+    {f:'🇹🇭',c:'THB',n:'태국 바트',v:'40.20',ch:'0.10',d:-1},
+    {f:'🇻🇳',c:'VND',n:'베트남 동(100)',v:'5.46',ch:'0.02',d:1}
+  ];
+  var byC={}; CATALOG.forEach(function(x){byC[x.c]=x;});
+  var picked; try{picked=JSON.parse(localStorage.getItem('nosion-fx-list'));}catch(e){}
+  if(!picked||!picked.length) picked=['USD','JPY','EUR','CNY'];
+  picked=picked.filter(function(c){return byC[c];});
+  function save(){try{localStorage.setItem('nosion-fx-list',JSON.stringify(picked));}catch(e){}}
+  function renderList(){
+    var list=document.getElementById('fx');
+    if(!picked.length){ list.innerHTML='<div class="fx-empty">아래 검색으로 통화를 추가하세요</div>'; return; }
+    list.innerHTML=picked.map(function(c){
+      var r=byC[c]; var cls=r.d>=0?'up':'down'; var arr=r.d>=0?'▲ ':'▼ ';
+      return '<div class="fx-row"><div class="fx-flag">'+r.f+'</div><div><div class="fx-code">'+r.c+'</div><div class="fx-name">'+r.n+'</div></div>'
+        +'<div class="fx-v"><div class="fx-vv mono">'+r.v+'</div><div class="fx-vc mono '+cls+'">'+arr+r.ch+'</div></div>'
+        +'<button class="fx-rm" data-c="'+r.c+'" title="제거"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>';
+    }).join('');
+    list.querySelectorAll('.fx-rm').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();picked=picked.filter(function(x){return x!==b.getAttribute('data-c');});save();renderList();});});
+  }
+  function renderSearch(q){
+    var box=document.getElementById('results');
+    q=(q||'').trim().toLowerCase();
+    if(!q){ box.classList.remove('show'); box.innerHTML=''; return; }
+    var res=CATALOG.filter(function(r){return picked.indexOf(r.c)<0 && (r.c.toLowerCase().indexOf(q)>=0 || r.n.toLowerCase().indexOf(q)>=0);}).slice(0,8);
+    box.classList.add('show');
+    if(!res.length){ box.innerHTML='<div class="fx-empty">결과 없음</div>'; return; }
+    box.innerHTML=res.map(function(r){return '<div class="fx-res" data-c="'+r.c+'"><span class="rf">'+r.f+'</span><span class="rc">'+r.c+'</span><span class="rn">'+r.n+'</span></div>';}).join('');
+    box.querySelectorAll('.fx-res').forEach(function(el){el.addEventListener('click',function(){
+      var c=el.getAttribute('data-c'); if(picked.indexOf(c)<0){ picked.push(c); save(); renderList(); }
+      document.getElementById('search').value=''; renderSearch('');
+    });});
+  }
+  var sb=document.getElementById('search');
+  sb.addEventListener('input',function(){renderSearch(sb.value);});
+  sb.addEventListener('pointerdown',function(e){e.stopPropagation();});
+  sb.addEventListener('blur',function(){setTimeout(function(){renderSearch('');},150);});
+  renderList();
+})();
+NosionFrame.init({ card: document.getElementById('w'), key:'nosion-exchange-frame', minW:250, minH:240, defaultW:330, defaultH:310 });
+</script>
+<script>
+(function(){
+  var root=document.getElementById('w'); if(!root) return;
+  var btn=document.createElement('button');
+  btn.className='wreset'; btn.title='기본 크기로';
+  btn.setAttribute('aria-label','기본 크기로');
+  btn.innerHTML='<svg viewBox="0 0 24 24"><path d="M9 21H3v-6M3 21l7-7M15 3h6v6M21 3l-7 7"/></svg>';
+  btn.addEventListener('pointerdown',function(e){e.stopPropagation();});
+  btn.addEventListener('click',function(e){e.stopPropagation();try{localStorage.removeItem('nosion-exchange-frame');}catch(_){}location.reload();});
+  root.appendChild(btn);
+  var hideT;
+  function show(){clearTimeout(hideT);btn.style.opacity='1';btn.style.pointerEvents='auto';}
+  function hideSoon(){hideT=setTimeout(function(){btn.style.opacity='0';btn.style.pointerEvents='none';},260);}
+  root.addEventListener('pointerenter',show);
+  root.addEventListener('pointerleave',hideSoon);
+  btn.addEventListener('pointerenter',show);
+  btn.addEventListener('pointerleave',hideSoon);
+})();
+</script>
+</body>
+</html>

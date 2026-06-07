@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>노시언 주식 위젯</title>
+<style>
+/* ===== 노시언 위젯 공용 기반 CSS ===== */
+:root{
+  --ink:#37352f; --ink2:rgba(55,53,47,.62); --ink3:rgba(55,53,47,.4); --ink4:rgba(55,53,47,.24);
+  --line:rgba(55,53,47,.11); --line2:rgba(55,53,47,.06); --fill:rgba(55,53,47,.045);
+  --card:#ffffff; --cardb:rgba(55,53,47,.11);
+  --accent:#37352f; --on:#ffffff; --red:#d6483c; --up:#c0392b; --down:#2f6f4e;
+  --handle:rgba(55,53,47,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --ink:#e9e7e3; --ink2:rgba(233,231,227,.62); --ink3:rgba(233,231,227,.4); --ink4:rgba(233,231,227,.22);
+    --line:rgba(233,231,227,.13); --line2:rgba(233,231,227,.07); --fill:rgba(233,231,227,.06);
+    --card:#1f1e1c; --cardb:rgba(233,231,227,.12);
+    --accent:#e9e7e3; --on:#23211e; --red:#ff7369; --up:#ff7369; --down:#4caf86;
+    --handle:rgba(233,231,227,.32);
+  }
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+html,body{background:transparent; height:100%;}
+body{
+  font-family:'Pretendard','Apple SD Gothic Neo',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  color:var(--ink); -webkit-font-smoothing:antialiased; overflow:hidden; height:100%;
+}
+.stage{position:fixed; inset:0;}
+
+.card{
+  position:absolute; background:var(--card); border:1px solid var(--cardb); border-radius:16px;
+  padding:18px; display:flex; flex-direction:column; box-shadow:0 1px 2px rgba(55,53,47,.04);
+  touch-action:none; container-type:size;
+}
+.card.dragging, .card.resizing{box-shadow:0 12px 36px rgba(55,53,47,.16); user-select:none;}
+
+.whead{display:flex; align-items:center; justify-content:space-between; gap:10px; flex:none; margin-bottom:13px; cursor:grab;}
+.whead:active{cursor:grabbing;}
+.wname{font-size:13.5px; font-weight:600; letter-spacing:-.01em; display:flex; align-items:center; gap:7px; white-space:nowrap;}
+.wname .wic{color:var(--ink3); display:flex;}
+.wname .wic svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+.wsub{font-size:11.5px; color:var(--ink3); font-weight:500; white-space:nowrap;}
+
+.wbody{flex:1; display:flex; flex-direction:column; justify-content:center; min-height:0;}
+
+.wfoot{flex:none; font-size:11px; color:var(--ink3); margin-top:12px; padding-top:12px; border-top:1px solid var(--line2);
+  display:flex; align-items:center; justify-content:space-between; gap:8px;}
+
+.seg{display:inline-flex; background:var(--fill); border-radius:8px; padding:2px; gap:2px; flex:none;}
+.seg button{border:0; background:transparent; font:inherit; font-size:11px; font-weight:600; color:var(--ink3);
+  padding:4px 9px; border-radius:6px; cursor:pointer; transition:.15s; letter-spacing:-.01em; white-space:nowrap;}
+.seg button.on{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(55,53,47,.12);}
+
+.ic{width:30px; height:30px; border-radius:8px; border:1px solid var(--line); background:transparent;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink2); transition:.15s; flex:none;}
+.ic:hover{background:var(--fill); color:var(--ink);}
+.ic:active{transform:scale(.92);}
+.ic svg{width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+.pill{font-size:11.5px; font-weight:600; color:var(--ink2); border:1px solid var(--line); border-radius:999px;
+  padding:5px 11px; cursor:pointer; transition:.15s; white-space:nowrap; background:transparent; display:inline-flex; align-items:center; gap:6px;}
+.pill:hover{background:var(--fill);}
+.pill.on, .pill.dark{background:var(--accent); color:var(--on); border-color:var(--accent);}
+
+.mono{font-variant-numeric:tabular-nums; font-feature-settings:"tnum";}
+
+/* 리사이즈 핸들 (frame.js가 주입) */
+.rz{position:absolute; z-index:5;}
+.rz.n{top:-4px; left:10px; right:10px; height:8px; cursor:ns-resize;}
+.rz.s{bottom:-4px; left:10px; right:10px; height:8px; cursor:ns-resize;}
+.rz.e{right:-4px; top:10px; bottom:10px; width:8px; cursor:ew-resize;}
+.rz.w{left:-4px; top:10px; bottom:10px; width:8px; cursor:ew-resize;}
+.rz.ne{top:-5px; right:-5px; width:14px; height:14px; cursor:nesw-resize;}
+.rz.nw{top:-5px; left:-5px; width:14px; height:14px; cursor:nwse-resize;}
+.rz.se{bottom:-5px; right:-5px; width:14px; height:14px; cursor:nwse-resize;}
+.rz.sw{bottom:-5px; left:-5px; width:14px; height:14px; cursor:nesw-resize;}
+.rz.corner::after{content:''; position:absolute; inset:4px; border-radius:50%; background:var(--handle); opacity:0; transition:.15s;}
+.card:hover .rz.corner::after{opacity:1;}
+
+.st{display:flex;flex-direction:column;height:100%;position:relative;}
+.st-top{display:flex;align-items:flex-end;gap:12px;flex:none;}
+.st-price{font-size:clamp(22px,9cqw,42px);font-weight:800;letter-spacing:-.02em;line-height:1;}
+.st-ch{font-size:13px;font-weight:700;margin-bottom:3px;}
+.st-idxspark{height:clamp(26px,8cqh,46px);width:55%;max-width:200px;margin-top:10px;flex:none;}
+.st-div{height:1px;background:var(--line2);margin:12px 0 4px;flex:none;}
+.st-list{flex:1;overflow-y:auto;min-height:0;}
+.st-list::-webkit-scrollbar{width:5px;}.st-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+.st-row{display:flex;align-items:center;gap:10px;padding:7px 0;}
+.st-name{min-width:0;flex:0 0 auto;}
+.st-nm{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;}
+.st-tk{font-size:9.5px;color:var(--ink3);font-weight:600;}
+.st-mini{width:46px;height:20px;flex:0 0 46px;margin-left:auto;}
+.st-pr{text-align:right;flex:0 0 auto;min-width:52px;}
+.st-pp{font-size:12.5px;font-weight:700;letter-spacing:-.01em;}
+.st-cc{font-size:10px;font-weight:600;}
+.st-rm{flex:0 0 16px;width:16px;height:16px;border:0;background:transparent;color:var(--ink3);cursor:pointer;opacity:0;font-size:12px;border-radius:4px;padding:0;line-height:1;}
+.st-row:hover .st-rm{opacity:1;}.st-rm:hover{color:var(--red);background:var(--fill);}
+.st-up{color:var(--ink);}.st-down{color:var(--ink3);}
+.st-add{flex:none;position:relative;max-height:0;opacity:0;pointer-events:none;transition:max-height .18s, opacity .18s, margin .18s;margin-top:0;}
+.card:hover .st-add, .st-add:focus-within{max-height:50px;opacity:1;pointer-events:auto;margin-top:8px;}
+.st-search{width:100%;border:1px solid var(--line);background:transparent;border-radius:9px;padding:8px 11px;font:inherit;font-size:12px;color:var(--ink);outline:none;}
+.st-search::placeholder{color:var(--ink4);}
+.st-search:focus{border-color:var(--ink3);}
+.st-results{position:absolute;left:0;right:0;bottom:calc(100% + 6px);background:var(--card);border:1px solid var(--cardb);border-radius:10px;box-shadow:0 8px 24px rgba(55,53,47,.16);max-height:170px;overflow-y:auto;display:none;z-index:8;}
+.st-results.show{display:block;}
+.st-res{display:flex;align-items:center;gap:8px;padding:8px 11px;cursor:pointer;font-size:12px;}
+.st-res:hover{background:var(--fill);}
+.st-res .rn{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.st-res .rmk{font-size:9px;color:var(--ink4);border:1px solid var(--line);border-radius:4px;padding:1px 5px;flex:0 0 auto;}
+.st-res .rt{font-size:9.5px;color:var(--ink3);font-weight:600;margin-left:auto;flex:0 0 auto;}
+.st-empty{font-size:11px;color:var(--ink4);text-align:center;padding:10px;}
+
+  /* 기본 크기 리셋 버튼 (테두리 바깥 오른쪽 위, 호버 시 표시) */
+  .wreset{position:absolute; top:6px; right:-38px; width:28px; height:28px; border-radius:50%;
+    border:1px solid var(--cardb); background:var(--card); color:var(--ink2);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    opacity:0; pointer-events:none; transition:opacity .15s, color .15s, background .15s, transform .1s;
+    box-shadow:0 2px 8px rgba(55,53,47,.14); z-index:6; padding:0;}
+  .wreset:hover{color:var(--ink); background:var(--fill);}
+  .wreset:active{transform:scale(.9);}
+  .wreset svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="card" id="w">
+    <div class="whead">
+      <div class="wname">주식</div>
+      <div class="seg" id="idxseg">
+        <button data-k="kospi">코스피</button>
+        <button data-k="nasdaq">나스닥</button>
+        <button data-k="snp">S&amp;P</button>
+      </div>
+    </div>
+    <div class="wbody" id="body"><div class="st">
+      <div class="st-top"><div class="st-price mono" id="idxPrice"></div><div class="st-ch mono" id="idxCh"></div></div>
+      <div class="st-idxspark" id="idxSpark"></div>
+      <div class="st-div"></div>
+      <div class="st-list" id="list"></div>
+      <div class="st-add"><input class="st-search" id="search" placeholder="종목 추가 (삼성, AAPL…)" maxlength="20"><div class="st-results" id="results"></div></div>
+    </div></div>
+    
+  </div>
+</div>
+<script>
+/* ===== 노시언 위젯 공용 프레임 — 드래그 이동 + 8방향 리사이즈 + 위치/크기 저장 ===== */
+(function(){
+  function init(opts){
+    opts = opts || {};
+    var card = opts.card || document.querySelector('.card');
+    var head = opts.head || card.querySelector('.whead');
+    var KEY  = opts.key || 'nosion-frame';
+    var MINW = opts.minW || 230, MINH = opts.minH || 210;
+    var DEFW = opts.defaultW || 340, DEFH = opts.defaultH || 300;
+
+    // 핸들 주입
+    ['n','s','e','w','ne','nw','se','sw'].forEach(function(d){
+      var el = document.createElement('div');
+      el.className = 'rz ' + d + (d.length===2 ? ' corner' : '');
+      el.setAttribute('data-rz', d);
+      card.appendChild(el);
+    });
+
+    var frame = loadFrame();
+    function loadFrame(){
+      try { var f = JSON.parse(localStorage.getItem(KEY)); if (f && f.w) return f; } catch(e){}
+      var w = Math.min(DEFW, window.innerWidth - 28);
+      var h = Math.min(DEFH, window.innerHeight - 28);
+      return { x:(window.innerWidth-w)/2, y:Math.max(14,(window.innerHeight-h)/2), w:w, h:h };
+    }
+    function clampFrame(){
+      frame.w = Math.max(MINW, Math.min(frame.w, window.innerWidth - 8));
+      frame.h = Math.max(MINH, Math.min(frame.h, window.innerHeight - 8));
+      frame.x = Math.max(4, Math.min(frame.x, window.innerWidth - frame.w - 4));
+      frame.y = Math.max(4, Math.min(frame.y, window.innerHeight - frame.h - 4));
+    }
+    function applyFrame(){
+      clampFrame();
+      card.style.left=frame.x+'px'; card.style.top=frame.y+'px';
+      card.style.width=frame.w+'px'; card.style.height=frame.h+'px';
+    }
+    function saveFrame(){ try{ localStorage.setItem(KEY, JSON.stringify(frame)); }catch(e){} }
+
+    // 드래그 이동 (헤더). 버튼·세그·인터랙션 요소 위에서는 무시
+    head.addEventListener('pointerdown', function(e){
+      if (e.target.closest('.seg, .ic, .pill, button, input, a, [data-nodrag]')) return;
+      startDrag(e);
+    });
+    card.querySelectorAll('.rz').forEach(function(hd){
+      hd.addEventListener('pointerdown', function(e){ startResize(e, hd.getAttribute('data-rz')); });
+    });
+    function startDrag(e){
+      e.preventDefault(); card.classList.add('dragging');
+      var sx=e.clientX, sy=e.clientY, ox=frame.x, oy=frame.y;
+      function move(ev){ frame.x=ox+(ev.clientX-sx); frame.y=oy+(ev.clientY-sy); applyFrame(); }
+      function up(){ card.classList.remove('dragging'); saveFrame(); document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); }
+      document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+    }
+    function startResize(e, dir){
+      e.preventDefault(); e.stopPropagation(); card.classList.add('resizing');
+      var sx=e.clientX, sy=e.clientY, o={x:frame.x,y:frame.y,w:frame.w,h:frame.h};
+      function move(ev){
+        var dx=ev.clientX-sx, dy=ev.clientY-sy;
+        if (dir.indexOf('e')>=0){ frame.w=Math.max(MINW,o.w+dx); }
+        if (dir.indexOf('s')>=0){ frame.h=Math.max(MINH,o.h+dy); }
+        if (dir.indexOf('w')>=0){ var nw=Math.max(MINW,o.w-dx); frame.x=o.x+(o.w-nw); frame.w=nw; }
+        if (dir.indexOf('n')>=0){ var nh=Math.max(MINH,o.h-dy); frame.y=o.y+(o.h-nh); frame.h=nh; }
+        applyFrame();
+      }
+      function up(){ card.classList.remove('resizing'); saveFrame(); document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); }
+      document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+    }
+    window.addEventListener('resize', applyFrame);
+    applyFrame();
+  }
+  window.NosionFrame = { init: init };
+})();
+
+</script>
+<script>
+(function(){
+  var INDICES={
+    kospi:{label:'코스피', value:'8,160.59', chg:-5.54},
+    nasdaq:{label:'나스닥', value:'25,709.43', chg:-4.18},
+    snp:{label:'S&P 500', value:'7,383.74', chg:-2.64}
+  };
+  var CATALOG=[
+    {n:'삼성전자',t:'005930',m:'KR',p:'329,000',c:-6.4},
+    {n:'SK하이닉스',t:'000660',m:'KR',p:'184,500',c:-0.4},
+    {n:'LG에너지솔루션',t:'373220',m:'KR',p:'412,000',c:1.2},
+    {n:'삼성바이오로직스',t:'207940',m:'KR',p:'798,000',c:0.3},
+    {n:'현대차',t:'005380',m:'KR',p:'248,500',c:-0.6},
+    {n:'기아',t:'000270',m:'KR',p:'118,900',c:0.9},
+    {n:'NAVER',t:'035420',m:'KR',p:'168,400',c:2.1},
+    {n:'카카오',t:'035720',m:'KR',p:'42,350',c:-1.3},
+    {n:'셀트리온',t:'068270',m:'KR',p:'192,000',c:0.5},
+    {n:'POSCO홀딩스',t:'005490',m:'KR',p:'388,500',c:-0.8},
+    {n:'삼성SDI',t:'006400',m:'KR',p:'372,000',c:1.7},
+    {n:'LG화학',t:'051910',m:'KR',p:'318,000',c:-0.2},
+    {n:'KB금융',t:'105560',m:'KR',p:'84,600',c:1.1},
+    {n:'신한지주',t:'055550',m:'KR',p:'58,900',c:0.4},
+    {n:'현대모비스',t:'012330',m:'KR',p:'231,000',c:-0.5},
+    {n:'애플',t:'AAPL',m:'US',p:'$229.40',c:1.1},
+    {n:'마이크로소프트',t:'MSFT',m:'US',p:'$448.20',c:0.6},
+    {n:'엔비디아',t:'NVDA',m:'US',p:'$224.36',c:-3.9},
+    {n:'아마존',t:'AMZN',m:'US',p:'$214.10',c:0.9},
+    {n:'알파벳(구글)',t:'GOOGL',m:'US',p:'$182.30',c:-0.4},
+    {n:'메타',t:'META',m:'US',p:'$612.50',c:1.4},
+    {n:'테슬라',t:'TSLA',m:'US',p:'$428.35',c:4.0},
+    {n:'브로드컴',t:'AVGO',m:'US',p:'$238.90',c:1.9},
+    {n:'넷플릭스',t:'NFLX',m:'US',p:'$912.40',c:0.7},
+    {n:'AMD',t:'AMD',m:'US',p:'$138.20',c:-1.6},
+    {n:'팔란티어',t:'PLTR',m:'US',p:'$74.60',c:3.2},
+    {n:'코인베이스',t:'COIN',m:'US',p:'$298.40',c:-0.9}
+  ];
+  var byT={}; CATALOG.forEach(function(s){byT[s.t]=s;});
+
+  var picked; try{picked=JSON.parse(localStorage.getItem('nosion-stock-list'));}catch(e){}
+  if(!picked||!picked.length) picked=['005930','TSLA','NVDA'];
+  picked=picked.filter(function(t){return byT[t];}).slice(0,5);
+  var curIdx; try{curIdx=localStorage.getItem('nosion-stock-idx');}catch(e){} if(!INDICES[curIdx]) curIdx='kospi';
+  function saveList(){try{localStorage.setItem('nosion-stock-list',JSON.stringify(picked));}catch(e){}}
+  function saveIdx(){try{localStorage.setItem('nosion-stock-idx',curIdx);}catch(e){}}
+
+  function seedNum(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))&0x7fffffff;return h||7;}
+  function sparkPath(seed,up,n){
+    n=n||16; var x=seedNum(seed); var a=[];
+    for(var i=0;i<n;i++){ x=(x*1103515245+12345)&0x7fffffff; a.push(x/0x7fffffff); }
+    a=a.map(function(v,i){return v*0.55+(up?i/(n-1):1-i/(n-1))*0.45;});
+    var mn=Math.min.apply(0,a),mx=Math.max.apply(0,a),rg=(mx-mn)||1;
+    return a.map(function(v,i){return [i/(n-1)*100, 26-(v-mn)/rg*22];});
+  }
+  function smoothPath(P){
+    if(P.length<2) return '';
+    var d='M'+P[0][0].toFixed(1)+','+P[0][1].toFixed(1), t=0.16;
+    for(var i=0;i<P.length-1;i++){
+      var p0=P[i-1]||P[i], p1=P[i], p2=P[i+1], p3=P[i+2]||p2;
+      var c1x=p1[0]+(p2[0]-p0[0])*t, c1y=p1[1]+(p2[1]-p0[1])*t;
+      var c2x=p2[0]-(p3[0]-p1[0])*t, c2y=p2[1]-(p3[1]-p1[1])*t;
+      d+='C'+c1x.toFixed(1)+','+c1y.toFixed(1)+' '+c2x.toFixed(1)+','+c2y.toFixed(1)+' '+p2[0].toFixed(1)+','+p2[1].toFixed(1);
+    }
+    return d;
+  }
+  function sparkSvg(seed,up,sw){
+    return '<svg viewBox="0 0 100 28" preserveAspectRatio="none" width="100%" height="100%"><path d="'+smoothPath(sparkPath(seed,up))+'" fill="none" stroke="var(--ink3)" stroke-width="'+(sw||1.7)+'" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>';
+  }
+  function fmt(c,dec){ return (c>=0?'▲ ':'▼ ')+Math.abs(c).toFixed(dec||1)+'%'; }
+
+  function renderIdx(){
+    var ix=INDICES[curIdx]; var up=ix.chg>=0;
+    document.getElementById('idxPrice').textContent=ix.value;
+    var ch=document.getElementById('idxCh'); ch.textContent=fmt(ix.chg,2); ch.className='st-ch mono '+(up?'st-up':'st-down');
+    document.getElementById('idxSpark').innerHTML=sparkSvg('idx-'+curIdx,up,1.7);
+    document.querySelectorAll('#idxseg button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-k')===curIdx);});
+  }
+  function renderList(){
+    var list=document.getElementById('list');
+    if(!picked.length){ list.innerHTML='<div class="st-empty">아래 검색으로 종목을 추가하세요</div>'; return; }
+    list.innerHTML=picked.map(function(t){
+      var s=byT[t]; var up=s.c>=0; var cls=up?'st-up':'st-down';
+      return '<div class="st-row"><div class="st-name"><div class="st-nm">'+s.n+'</div><div class="st-tk">'+s.t+'</div></div>'
+        +'<div class="st-mini">'+sparkSvg(s.t,up)+'</div>'
+        +'<div class="st-pr"><div class="st-pp mono">'+s.p+'</div><div class="st-cc mono '+cls+'">'+fmt(s.c)+'</div></div>'
+        +'<button class="st-rm" data-t="'+s.t+'" title="제거">✕</button></div>';
+    }).join('');
+    list.querySelectorAll('.st-rm').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();picked=picked.filter(function(x){return x!==b.getAttribute('data-t');});saveList();renderList();});});
+  }
+  function renderSearch(q){
+    var box=document.getElementById('results');
+    q=(q||'').trim().toLowerCase();
+    if(!q){ box.classList.remove('show'); box.innerHTML=''; return; }
+    var res=CATALOG.filter(function(s){return picked.indexOf(s.t)<0 && (s.n.toLowerCase().indexOf(q)>=0 || s.t.toLowerCase().indexOf(q)>=0);}).slice(0,8);
+    if(!res.length){ box.classList.add('show'); box.innerHTML='<div class="st-empty">결과 없음</div>'; return; }
+    box.classList.add('show');
+    box.innerHTML=res.map(function(s){return '<div class="st-res" data-t="'+s.t+'"><span class="rmk">'+s.m+'</span><span class="rn">'+s.n+'</span><span class="rt">'+s.t+'</span></div>';}).join('');
+    box.querySelectorAll('.st-res').forEach(function(el){el.addEventListener('click',function(){
+      if(picked.length>=5){ flash('최대 5개까지'); return; }
+      var t=el.getAttribute('data-t'); if(picked.indexOf(t)<0){ picked.push(t); saveList(); renderList(); }
+      document.getElementById('search').value=''; renderSearch('');
+    });});
+  }
+  function flash(msg){ var box=document.getElementById('results'); box.classList.add('show'); box.innerHTML='<div class="st-empty">'+msg+'</div>'; }
+
+  document.querySelectorAll('#idxseg button').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();curIdx=b.getAttribute('data-k');saveIdx();renderIdx();});});
+  var sb=document.getElementById('search');
+  sb.addEventListener('input',function(){renderSearch(sb.value);});
+  sb.addEventListener('pointerdown',function(e){e.stopPropagation();});
+  sb.addEventListener('blur',function(){setTimeout(function(){renderSearch('');},150);});
+
+  renderIdx(); renderList();
+})();
+NosionFrame.init({ card: document.getElementById('w'), key:'nosion-stock-frame', minW:260, minH:290, defaultW:350, defaultH:380 });
+</script>
+<script>
+(function(){
+  var root=document.getElementById('w'); if(!root) return;
+  var btn=document.createElement('button');
+  btn.className='wreset'; btn.title='기본 크기로';
+  btn.setAttribute('aria-label','기본 크기로');
+  btn.innerHTML='<svg viewBox="0 0 24 24"><path d="M9 21H3v-6M3 21l7-7M15 3h6v6M21 3l-7 7"/></svg>';
+  btn.addEventListener('pointerdown',function(e){e.stopPropagation();});
+  btn.addEventListener('click',function(e){e.stopPropagation();try{localStorage.removeItem('nosion-stock-frame');}catch(_){}location.reload();});
+  root.appendChild(btn);
+  var hideT;
+  function show(){clearTimeout(hideT);btn.style.opacity='1';btn.style.pointerEvents='auto';}
+  function hideSoon(){hideT=setTimeout(function(){btn.style.opacity='0';btn.style.pointerEvents='none';},260);}
+  root.addEventListener('pointerenter',show);
+  root.addEventListener('pointerleave',hideSoon);
+  btn.addEventListener('pointerenter',show);
+  btn.addEventListener('pointerleave',hideSoon);
+})();
+</script>
+</body>
+</html>

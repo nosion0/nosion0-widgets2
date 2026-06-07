@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>노시언 습관 잔디 위젯</title>
+<style>
+/* ===== 노시언 위젯 공용 기반 CSS ===== */
+:root{
+  --ink:#37352f; --ink2:rgba(55,53,47,.62); --ink3:rgba(55,53,47,.4); --ink4:rgba(55,53,47,.24);
+  --line:rgba(55,53,47,.11); --line2:rgba(55,53,47,.06); --fill:rgba(55,53,47,.045);
+  --card:#ffffff; --cardb:rgba(55,53,47,.11);
+  --accent:#37352f; --on:#ffffff; --red:#d6483c; --up:#c0392b; --down:#2f6f4e;
+  --handle:rgba(55,53,47,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --ink:#e9e7e3; --ink2:rgba(233,231,227,.62); --ink3:rgba(233,231,227,.4); --ink4:rgba(233,231,227,.22);
+    --line:rgba(233,231,227,.13); --line2:rgba(233,231,227,.07); --fill:rgba(233,231,227,.06);
+    --card:#1f1e1c; --cardb:rgba(233,231,227,.12);
+    --accent:#e9e7e3; --on:#23211e; --red:#ff7369; --up:#ff7369; --down:#4caf86;
+    --handle:rgba(233,231,227,.32);
+  }
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+html,body{background:transparent; height:100%;}
+body{
+  font-family:'Pretendard','Apple SD Gothic Neo',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  color:var(--ink); -webkit-font-smoothing:antialiased; overflow:hidden; height:100%;
+}
+.stage{position:fixed; inset:0;}
+
+.card{
+  position:absolute; background:var(--card); border:1px solid var(--cardb); border-radius:16px;
+  padding:18px; display:flex; flex-direction:column; box-shadow:0 1px 2px rgba(55,53,47,.04);
+  touch-action:none; container-type:size;
+}
+.card.dragging, .card.resizing{box-shadow:0 12px 36px rgba(55,53,47,.16); user-select:none;}
+
+.whead{display:flex; align-items:center; justify-content:space-between; gap:10px; flex:none; margin-bottom:13px; cursor:grab;}
+.whead:active{cursor:grabbing;}
+.wname{font-size:13.5px; font-weight:600; letter-spacing:-.01em; display:flex; align-items:center; gap:7px; white-space:nowrap;}
+.wname .wic{color:var(--ink3); display:flex;}
+.wname .wic svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+.wsub{font-size:11.5px; color:var(--ink3); font-weight:500; white-space:nowrap;}
+
+.wbody{flex:1; display:flex; flex-direction:column; justify-content:center; min-height:0;}
+
+.wfoot{flex:none; font-size:11px; color:var(--ink3); margin-top:12px; padding-top:12px; border-top:1px solid var(--line2);
+  display:flex; align-items:center; justify-content:space-between; gap:8px;}
+
+.seg{display:inline-flex; background:var(--fill); border-radius:8px; padding:2px; gap:2px; flex:none;}
+.seg button{border:0; background:transparent; font:inherit; font-size:11px; font-weight:600; color:var(--ink3);
+  padding:4px 9px; border-radius:6px; cursor:pointer; transition:.15s; letter-spacing:-.01em; white-space:nowrap;}
+.seg button.on{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(55,53,47,.12);}
+
+.ic{width:30px; height:30px; border-radius:8px; border:1px solid var(--line); background:transparent;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink2); transition:.15s; flex:none;}
+.ic:hover{background:var(--fill); color:var(--ink);}
+.ic:active{transform:scale(.92);}
+.ic svg{width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+.pill{font-size:11.5px; font-weight:600; color:var(--ink2); border:1px solid var(--line); border-radius:999px;
+  padding:5px 11px; cursor:pointer; transition:.15s; white-space:nowrap; background:transparent; display:inline-flex; align-items:center; gap:6px;}
+.pill:hover{background:var(--fill);}
+.pill.on, .pill.dark{background:var(--accent); color:var(--on); border-color:var(--accent);}
+
+.mono{font-variant-numeric:tabular-nums; font-feature-settings:"tnum";}
+
+/* 리사이즈 핸들 (frame.js가 주입) */
+.rz{position:absolute; z-index:5;}
+.rz.n{top:-4px; left:10px; right:10px; height:8px; cursor:ns-resize;}
+.rz.s{bottom:-4px; left:10px; right:10px; height:8px; cursor:ns-resize;}
+.rz.e{right:-4px; top:10px; bottom:10px; width:8px; cursor:ew-resize;}
+.rz.w{left:-4px; top:10px; bottom:10px; width:8px; cursor:ew-resize;}
+.rz.ne{top:-5px; right:-5px; width:14px; height:14px; cursor:nesw-resize;}
+.rz.nw{top:-5px; left:-5px; width:14px; height:14px; cursor:nwse-resize;}
+.rz.se{bottom:-5px; right:-5px; width:14px; height:14px; cursor:nwse-resize;}
+.rz.sw{bottom:-5px; left:-5px; width:14px; height:14px; cursor:nesw-resize;}
+.rz.corner::after{content:''; position:absolute; inset:4px; border-radius:50%; background:var(--handle); opacity:0; transition:.15s;}
+.card:hover .rz.corner::after{opacity:1;}
+
+.hb{display:flex;flex-direction:column;justify-content:center;height:100%;}
+.hb-grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:clamp(2px,0.9cqmin,5px);}
+.hb-c{width:100%;aspect-ratio:1;border-radius:3px;cursor:pointer;transition:.1s;}
+.hb-leg{display:flex;gap:3px;align-items:center;}
+.hb-leg i{width:9px;height:9px;border-radius:2px;display:inline-block;}
+
+  /* 기본 크기 리셋 버튼 (테두리 바깥 오른쪽 위, 호버 시 표시) */
+  .wreset{position:absolute; top:6px; right:-38px; width:28px; height:28px; border-radius:50%;
+    border:1px solid var(--cardb); background:var(--card); color:var(--ink2);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    opacity:0; pointer-events:none; transition:opacity .15s, color .15s, background .15s, transform .1s;
+    box-shadow:0 2px 8px rgba(55,53,47,.14); z-index:6; padding:0;}
+  .wreset:hover{color:var(--ink); background:var(--fill);}
+  .wreset:active{transform:scale(.9);}
+  .wreset svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="card" id="w">
+    <div class="whead">
+      <div class="wname">습관 잔디</div>
+      <div class="wsub" id="streak"></div>
+    </div>
+    <div class="wbody" id="body"><div class="hb"><div class="hb-grid" id="grid"></div></div></div>
+    <div class="wfoot"><span>클릭해서 기록</span><span class="hb-leg" id="leg"></span></div>
+  </div>
+</div>
+<script>
+/* ===== 노시언 위젯 공용 프레임 — 드래그 이동 + 8방향 리사이즈 + 위치/크기 저장 ===== */
+(function(){
+  function init(opts){
+    opts = opts || {};
+    var card = opts.card || document.querySelector('.card');
+    var head = opts.head || card.querySelector('.whead');
+    var KEY  = opts.key || 'nosion-frame';
+    var MINW = opts.minW || 230, MINH = opts.minH || 210;
+    var DEFW = opts.defaultW || 340, DEFH = opts.defaultH || 300;
+
+    // 핸들 주입
+    ['n','s','e','w','ne','nw','se','sw'].forEach(function(d){
+      var el = document.createElement('div');
+      el.className = 'rz ' + d + (d.length===2 ? ' corner' : '');
+      el.setAttribute('data-rz', d);
+      card.appendChild(el);
+    });
+
+    var frame = loadFrame();
+    function loadFrame(){
+      try { var f = JSON.parse(localStorage.getItem(KEY)); if (f && f.w) return f; } catch(e){}
+      var w = Math.min(DEFW, window.innerWidth - 28);
+      var h = Math.min(DEFH, window.innerHeight - 28);
+      return { x:(window.innerWidth-w)/2, y:Math.max(14,(window.innerHeight-h)/2), w:w, h:h };
+    }
+    function clampFrame(){
+      frame.w = Math.max(MINW, Math.min(frame.w, window.innerWidth - 8));
+      frame.h = Math.max(MINH, Math.min(frame.h, window.innerHeight - 8));
+      frame.x = Math.max(4, Math.min(frame.x, window.innerWidth - frame.w - 4));
+      frame.y = Math.max(4, Math.min(frame.y, window.innerHeight - frame.h - 4));
+    }
+    function applyFrame(){
+      clampFrame();
+      card.style.left=frame.x+'px'; card.style.top=frame.y+'px';
+      card.style.width=frame.w+'px'; card.style.height=frame.h+'px';
+    }
+    function saveFrame(){ try{ localStorage.setItem(KEY, JSON.stringify(frame)); }catch(e){} }
+
+    // 드래그 이동 (헤더). 버튼·세그·인터랙션 요소 위에서는 무시
+    head.addEventListener('pointerdown', function(e){
+      if (e.target.closest('.seg, .ic, .pill, button, input, a, [data-nodrag]')) return;
+      startDrag(e);
+    });
+    card.querySelectorAll('.rz').forEach(function(hd){
+      hd.addEventListener('pointerdown', function(e){ startResize(e, hd.getAttribute('data-rz')); });
+    });
+    function startDrag(e){
+      e.preventDefault(); card.classList.add('dragging');
+      var sx=e.clientX, sy=e.clientY, ox=frame.x, oy=frame.y;
+      function move(ev){ frame.x=ox+(ev.clientX-sx); frame.y=oy+(ev.clientY-sy); applyFrame(); }
+      function up(){ card.classList.remove('dragging'); saveFrame(); document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); }
+      document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+    }
+    function startResize(e, dir){
+      e.preventDefault(); e.stopPropagation(); card.classList.add('resizing');
+      var sx=e.clientX, sy=e.clientY, o={x:frame.x,y:frame.y,w:frame.w,h:frame.h};
+      function move(ev){
+        var dx=ev.clientX-sx, dy=ev.clientY-sy;
+        if (dir.indexOf('e')>=0){ frame.w=Math.max(MINW,o.w+dx); }
+        if (dir.indexOf('s')>=0){ frame.h=Math.max(MINH,o.h+dy); }
+        if (dir.indexOf('w')>=0){ var nw=Math.max(MINW,o.w-dx); frame.x=o.x+(o.w-nw); frame.w=nw; }
+        if (dir.indexOf('n')>=0){ var nh=Math.max(MINH,o.h-dy); frame.y=o.y+(o.h-nh); frame.h=nh; }
+        applyFrame();
+      }
+      function up(){ card.classList.remove('resizing'); saveFrame(); document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); }
+      document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+    }
+    window.addEventListener('resize', applyFrame);
+    applyFrame();
+  }
+  window.NosionFrame = { init: init };
+})();
+
+</script>
+<script>
+(function(){
+  var WEEKS=16;var lv=['var(--fill)','rgba(55,53,47,.22)','rgba(55,53,47,.42)','rgba(55,53,47,.66)','rgba(55,53,47,.92)'];
+  if(matchMedia('(prefers-color-scheme: dark)').matches)lv=['rgba(233,231,227,.07)','rgba(233,231,227,.25)','rgba(233,231,227,.45)','rgba(233,231,227,.7)','rgba(233,231,227,.95)'];
+  var cells;try{cells=JSON.parse(localStorage.getItem('nosion-habit'));}catch(e){}
+  if(!cells||cells.length!==WEEKS*7)cells=Array.from({length:WEEKS*7},function(){var r=Math.random();return r>.55?(r>.8?(r>.92?4:3):2):(r>.35?1:0);});
+  function save(){try{localStorage.setItem('nosion-habit',JSON.stringify(cells));}catch(e){}}
+  function render(){
+    var streak=0;for(var i=cells.length-1;i>=0;i--){if(cells[i]>0)streak++;else break;}
+    document.getElementById('streak').textContent='🔥 '+streak+'일 연속';
+    document.getElementById('grid').innerHTML=cells.map(function(v,i){return '<div class="hb-c" data-i="'+i+'" style="background:'+lv[v]+'"></div>';}).join('');
+    document.getElementById('leg').innerHTML='적음'+lv.map(function(c){return '<i style="background:'+c+'"></i>';}).join('')+'많음';
+    document.querySelectorAll('.hb-c').forEach(function(el){el.addEventListener('click',function(){var i=+el.getAttribute('data-i');cells[i]=(cells[i]+1)%5;save();render();});});
+  }
+  render();
+})();
+NosionFrame.init({ card: document.getElementById('w'), key:'nosion-habit-frame', minW:250, minH:200, defaultW:360, defaultH:240 });
+</script>
+<script>
+(function(){
+  var root=document.getElementById('w'); if(!root) return;
+  var btn=document.createElement('button');
+  btn.className='wreset'; btn.title='기본 크기로';
+  btn.setAttribute('aria-label','기본 크기로');
+  btn.innerHTML='<svg viewBox="0 0 24 24"><path d="M9 21H3v-6M3 21l7-7M15 3h6v6M21 3l-7 7"/></svg>';
+  btn.addEventListener('pointerdown',function(e){e.stopPropagation();});
+  btn.addEventListener('click',function(e){e.stopPropagation();try{localStorage.removeItem('nosion-habit-frame');}catch(_){}location.reload();});
+  root.appendChild(btn);
+  var hideT;
+  function show(){clearTimeout(hideT);btn.style.opacity='1';btn.style.pointerEvents='auto';}
+  function hideSoon(){hideT=setTimeout(function(){btn.style.opacity='0';btn.style.pointerEvents='none';},260);}
+  root.addEventListener('pointerenter',show);
+  root.addEventListener('pointerleave',hideSoon);
+  btn.addEventListener('pointerenter',show);
+  btn.addEventListener('pointerleave',hideSoon);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>노시언 위젯 26종</title>
+<link rel="stylesheet" href="nosion-base.css">
+<style>
+  html,body{background:#f3f2ef; overflow:auto;}
+  @media (prefers-color-scheme: dark){ html,body{background:#161513;} }
+  .wrap{max-width:1180px; margin:0 auto; padding:56px 28px 90px;}
+  .head{margin-bottom:42px;}
+  .kick{font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--ink3);}
+  .title{font-size:40px; font-weight:800; letter-spacing:-.035em; margin:12px 0 0;}
+  .desc{font-size:15px; color:var(--ink2); margin-top:12px; line-height:1.6; max-width:560px;}
+  .meta{display:inline-flex; align-items:center; gap:8px; margin-top:18px; font-size:12.5px; font-weight:600;
+    color:var(--ink2); border:1px solid var(--line); border-radius:999px; padding:7px 14px; background:var(--card);}
+  .group{display:flex; align-items:center; gap:10px; margin:38px 0 18px;}
+  .group-n{font-size:18px; font-weight:800; letter-spacing:-.02em;}
+  .group-c{font-size:12px; font-weight:700; color:var(--ink3); background:var(--fill); border-radius:999px; padding:2px 9px;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:20px;}
+  .cell{background:var(--card); border:1px solid var(--cardb); border-radius:16px; overflow:hidden; display:flex; flex-direction:column;}
+  .frame{width:100%; height:300px; border:0; display:block; background:transparent;}
+  .cap{display:flex; align-items:center; justify-content:space-between; padding:13px 16px; border-top:1px solid var(--line2);}
+  .cap-n{font-size:14px; font-weight:700; letter-spacing:-.01em;}
+  .cap-a{font-size:12px; font-weight:600; color:var(--ink2); text-decoration:none; border:1px solid var(--line);
+    border-radius:8px; padding:5px 11px; transition:.15s;}
+  .cap-a:hover{background:var(--fill); color:var(--ink);}
+</style>
+</head>
+<body>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#f3f2ef"/><g fill="none" stroke="#37352f" stroke-width="3"><rect x="30" y="30" width="40" height="40" rx="8"/><path d="M30 44h40M44 44v26"/></g></svg></template>
+<div class="wrap">
+  <div class="head">
+    <div class="kick">NOSION WIDGETS</div>
+    <h1 class="title">노시언 위젯 26종</h1>
+    <p class="desc">노션과 자연스럽게 어우러지는 모노톤 위젯. 각 위젯은 테두리를 끌어 8방향으로 크기를 조절하고, 헤더를 잡아 위치를 옮길 수 있습니다. 투명 배경 · 다크모드 자동 대응 · 파일 하나로 독립 동작.</p>
+    <div class="meta">🎨 전체 26종 · 노션 임베드용</div>
+  </div>
+  <div id="groups"></div>
+</div>
+<script>
+  var GROUPS = [
+    ['시간', [
+      ['nosion-calendar.html','달력'],['nosion-clock.html','시계'],['nosion-flip.html','플립워치'],
+      ['nosion-world.html','세계 시계'],['nosion-dday.html','디데이'],['nosion-daycounter.html','데이카운터'],
+      ['nosion-progress.html','진행률'],
+    ]],
+    ['집중 · 트래커', [
+      ['nosion-pomodoro.html','포모도로'],['nosion-todo.html','할 일'],['nosion-routine.html','루틴 트래커'],
+      ['nosion-habit.html','습관 잔디'],['nosion-tally.html','탭 카운터'],['nosion-breathing.html','호흡 가이드'],
+    ]],
+    ['생활', [
+      ['nosion-mood.html','무드 트래커'],['nosion-plant.html','식물 키우기'],['nosion-water.html','물 마시기'],
+      ['nosion-gratitude.html','감사 일기'],['nosion-quote.html','오늘의 명언'],['nosion-lunch.html','점심 추첨'],
+    ]],
+    ['정보', [
+      ['nosion-weather.html','날씨'],['nosion-moon.html','달 위상'],['nosion-constellation.html','별자리'],
+      ['nosion-sunrise.html','일출·일몰'],['nosion-air.html','공기질'],['nosion-stock.html','주식'],
+      ['nosion-exchange.html','환율'],
+    ]],
+  ];
+  var html = '';
+  GROUPS.forEach(function(g){
+    html += '<div class="group"><span class="group-n">'+g[0]+'</span><span class="group-c">'+g[1].length+'</span></div>';
+    html += '<div class="grid">';
+    g[1].forEach(function(w){
+      html += '<div class="cell"><iframe class="frame" src="'+w[0]+'" loading="lazy" title="'+w[1]+'"></iframe>'
+            + '<div class="cap"><span class="cap-n">'+w[1]+'</span><a class="cap-a" href="'+w[0]+'" target="_blank" rel="noopener">크게 열기 ↗</a></div></div>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('groups').innerHTML = html;
+</script>
+</body>
+</html>

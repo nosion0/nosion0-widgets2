@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>노시언 시계 위젯</title>
+<style>
+  /* ===== 노시언 실시간 시계 위젯 — 단독 실행형 (노션 임베드용) =====
+     · 투명 배경 / 외부 의존성 없음 / 라이트·다크 자동 대응
+     · 8방향 테두리 리사이즈 + 헤더 드래그 이동 (크기·위치 저장)
+     · 컨테이너 기준 반응형 타이포 — 키우면 숫자가 시원하게 커짐 */
+  :root{
+    --ink:#37352f; --ink2:rgba(55,53,47,.62); --ink3:rgba(55,53,47,.4); --ink4:rgba(55,53,47,.24);
+    --line:rgba(55,53,47,.11); --fill:rgba(55,53,47,.045);
+    --card:#ffffff; --cardb:rgba(55,53,47,.11);
+    --accent:#37352f; --on:#ffffff; --handle:rgba(55,53,47,.28);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ink:#e9e7e3; --ink2:rgba(233,231,227,.62); --ink3:rgba(233,231,227,.4); --ink4:rgba(233,231,227,.22);
+      --line:rgba(233,231,227,.13); --fill:rgba(233,231,227,.06);
+      --card:#1f1e1c; --cardb:rgba(233,231,227,.12);
+      --accent:#e9e7e3; --on:#23211e; --handle:rgba(233,231,227,.32);
+    }
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{background:transparent; height:100%;}
+  body{
+    font-family:'Pretendard','Apple SD Gothic Neo',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    color:var(--ink); -webkit-font-smoothing:antialiased; overflow:hidden; height:100%;
+  }
+  .stage{position:fixed; inset:0;}
+
+  .clock{
+    position:absolute;
+    background:var(--card); border:1px solid var(--cardb); border-radius:16px;
+    padding:18px; display:flex; flex-direction:column;
+    box-shadow:0 1px 2px rgba(55,53,47,.04);
+    touch-action:none; container-type:size;
+  }
+  .clock.dragging, .clock.resizing{box-shadow:0 12px 36px rgba(55,53,47,.16); user-select:none;}
+
+  .ck-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex:none; cursor:grab;}
+  .ck-head:active{cursor:grabbing;}
+  .ck-name{font-size:13.5px; font-weight:600; letter-spacing:-.01em; display:flex; align-items:center; gap:7px; white-space:nowrap;}
+  .ck-name .nic{color:var(--ink3); display:flex;}
+  .ck-name .nic svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+
+  .seg{display:inline-flex; background:var(--fill); border-radius:8px; padding:2px; gap:2px; flex:none;}
+  .seg button{border:0; background:transparent; font:inherit; font-size:11px; font-weight:600; color:var(--ink3);
+    padding:4px 9px; border-radius:6px; cursor:pointer; transition:.15s; letter-spacing:-.01em; white-space:nowrap;}
+  .seg button.on{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(55,53,47,.12);}
+
+  .ck-body{flex:1; display:flex; flex-direction:column; justify-content:center; min-height:0; overflow:hidden;}
+  .ck-time{
+    font-weight:800; letter-spacing:-.03em; line-height:.96; font-variant-numeric:tabular-nums;
+    font-size:clamp(34px, 26cqw, 240px); white-space:nowrap; color:var(--digit, var(--ink));
+  }
+  .ck-time .sec{ font-size:.5em; color:var(--ink3); font-weight:700; }
+  .ck-time .ap{ font-size:.34em; color:var(--ink3); font-weight:700; margin-left:.25em; }
+  .ck-date{ font-size:clamp(11px, 4.4cqw, 26px); color:var(--ink2); font-weight:500; margin-top:.7em; }
+  .ck-tz{ font-size:clamp(10px, 3.4cqw, 16px); color:var(--ink3); font-weight:500; margin-top:.5em; }
+
+  .ck-ctrls{display:flex; align-items:center; gap:7px; flex:none;}
+  .ck-sec{font-size:11px; font-weight:600; color:var(--ink2); border:1px solid var(--line); border-radius:7px;
+    padding:4px 9px; cursor:pointer; transition:opacity .15s, background .15s, color .15s; white-space:nowrap; background:transparent;
+    opacity:0; pointer-events:none;}
+  .ck-sec:hover{background:var(--fill);}
+  .ck-sec.on{background:var(--accent); color:var(--on); border-color:var(--accent);}
+  .clock:hover .ck-sec{opacity:1; pointer-events:auto;}
+
+  .rz{position:absolute; z-index:5;}
+  .rz.n{top:-4px; left:10px; right:10px; height:8px; cursor:ns-resize;}
+  .rz.s{bottom:-4px; left:10px; right:10px; height:8px; cursor:ns-resize;}
+  .rz.e{right:-4px; top:10px; bottom:10px; width:8px; cursor:ew-resize;}
+  .rz.w{left:-4px; top:10px; bottom:10px; width:8px; cursor:ew-resize;}
+  .rz.ne{top:-5px; right:-5px; width:14px; height:14px; cursor:nesw-resize;}
+  .rz.nw{top:-5px; left:-5px; width:14px; height:14px; cursor:nwse-resize;}
+  .rz.se{bottom:-5px; right:-5px; width:14px; height:14px; cursor:nwse-resize;}
+  .rz.sw{bottom:-5px; left:-5px; width:14px; height:14px; cursor:nesw-resize;}
+  .rz.corner::after{content:''; position:absolute; inset:4px; border-radius:50%; background:var(--handle); opacity:0; transition:.15s;}
+  .clock:hover .rz.corner::after{opacity:1;}
+
+  /* 기본 크기 리셋 버튼 (테두리 바깥 오른쪽 위, 호버 시 표시) */
+  .wreset{position:absolute; top:6px; right:-38px; width:28px; height:28px; border-radius:50%;
+    border:1px solid var(--cardb); background:var(--card); color:var(--ink2);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    opacity:0; pointer-events:none; transition:opacity .15s, color .15s, background .15s, transform .1s;
+    box-shadow:0 2px 8px rgba(55,53,47,.14); z-index:6; padding:0;}
+  .wreset:hover{color:var(--ink); background:var(--fill);}
+  .wreset:active{transform:scale(.9);}
+  .wreset svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+
+  /* 색상 선택 (리사이즈 버튼 아래, 호버 시) */
+  .wtone{position:absolute; top:42px; right:-38px; display:flex; flex-direction:column; gap:6px; z-index:6;
+    opacity:0; pointer-events:none; transition:opacity .15s;}
+  .wtone button{width:28px; height:28px; border-radius:50%; border:1px solid var(--cardb); cursor:pointer;
+    background:var(--sw); padding:0; box-shadow:0 2px 8px rgba(55,53,47,.14); transition:transform .1s;}
+  .wtone button:active{transform:scale(.9);}
+  .wtone button.on{box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--ink3);}
+  .clock.ctl-on .wreset, .clock.ctl-on .wtone{opacity:1; pointer-events:auto;}
+
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="clock" id="clock">
+    <div class="ck-head" id="ck-head">
+      <div class="ck-name"></div>
+      <div class="ck-ctrls">
+        <button class="ck-sec" id="secToggle">초 표시</button>
+        <div class="seg" id="seg">
+          <button data-h="24">24H</button>
+          <button data-h="12">12H</button>
+        </div>
+      </div>
+    </div>
+    <div class="ck-body">
+      <div class="ck-time" id="time"></div>
+      <div class="ck-date" id="date"></div>
+      <div class="ck-tz">Asia/Seoul</div>
+    </div>
+    <div class="rz n" data-rz="n"></div><div class="rz s" data-rz="s"></div>
+    <div class="rz e" data-rz="e"></div><div class="rz w" data-rz="w"></div>
+    <div class="rz ne corner" data-rz="ne"></div><div class="rz nw corner" data-rz="nw"></div>
+    <div class="rz se corner" data-rz="se"></div><div class="rz sw corner" data-rz="sw"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var DOW = ['일','월','화','수','목','금','토'];
+  var PREF_KEY = 'nosion-clock-pref';
+  var POS_KEY  = 'nosion-clock-frame';
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  // ===== 설정 (12/24, 초표시) =====
+  var pref = { h24:true, sec:true };
+  try { var p = JSON.parse(localStorage.getItem(PREF_KEY)); if (p) pref = Object.assign(pref, p); } catch(e){}
+  function savePref(){ try{ localStorage.setItem(PREF_KEY, JSON.stringify(pref)); }catch(e){} }
+
+  var timeEl = document.getElementById('time');
+  var dateEl = document.getElementById('date');
+
+  function tick(){
+    var now = new Date();
+    var h = now.getHours(); var ap = h<12 ? 'AM':'PM';
+    if (!pref.h24){ h = h%12; if (h===0) h=12; }
+    var html = pad(h)+':'+pad(now.getMinutes());
+    if (pref.sec) html += '<span class="sec">:'+pad(now.getSeconds())+'</span>';
+    timeEl.innerHTML = html;
+    dateEl.textContent = now.getFullYear()+'년 '+(now.getMonth()+1)+'월 '+now.getDate()+'일 '+DOW[now.getDay()]+'요일';
+  }
+  function syncControls(){
+    document.querySelectorAll('#seg button').forEach(function(b){
+      b.classList.toggle('on', (b.getAttribute('data-h')==='24')===pref.h24);
+    });
+    document.getElementById('secToggle').classList.toggle('on', pref.sec);
+  }
+  document.querySelectorAll('#seg button').forEach(function(b){
+    b.addEventListener('click', function(e){ e.stopPropagation(); pref.h24 = b.getAttribute('data-h')==='24'; savePref(); syncControls(); tick(); });
+  });
+  document.getElementById('secToggle').addEventListener('click', function(e){
+    e.stopPropagation(); pref.sec = !pref.sec; savePref(); syncControls(); tick();
+  });
+
+  // ===== 위치/크기 (드래그 + 8방향 리사이즈) =====
+  var clock = document.getElementById('clock');
+  var MINW = 230, MINH = 150;
+  var frame = loadFrame();
+  function loadFrame(){
+    try { var f = JSON.parse(localStorage.getItem(POS_KEY)); if (f && f.w) return f; } catch(e){}
+    var w = Math.min(360, window.innerWidth - 28);
+    var h = Math.min(220, window.innerHeight - 28);
+    return { x:(window.innerWidth-w)/2, y:Math.max(14,(window.innerHeight-h)/2), w:w, h:h };
+  }
+  function clampFrame(){
+    frame.w = Math.max(MINW, Math.min(frame.w, window.innerWidth - 8));
+    frame.h = Math.max(MINH, Math.min(frame.h, window.innerHeight - 8));
+    frame.x = Math.max(4, Math.min(frame.x, window.innerWidth - frame.w - 4));
+    frame.y = Math.max(4, Math.min(frame.y, window.innerHeight - frame.h - 4));
+  }
+  function applyFrame(){
+    clampFrame();
+    clock.style.left=frame.x+'px'; clock.style.top=frame.y+'px';
+    clock.style.width=frame.w+'px'; clock.style.height=frame.h+'px';
+  }
+  function saveFrame(){ try{ localStorage.setItem(POS_KEY, JSON.stringify(frame)); }catch(e){} }
+
+  document.getElementById('ck-head').addEventListener('pointerdown', function(e){
+    if (e.target.closest('.seg')) return;
+    startDrag(e);
+  });
+  clock.querySelectorAll('.rz').forEach(function(hd){
+    hd.addEventListener('pointerdown', function(e){ startResize(e, hd.getAttribute('data-rz')); });
+  });
+  function startDrag(e){
+    e.preventDefault(); clock.classList.add('dragging');
+    var sx=e.clientX, sy=e.clientY, ox=frame.x, oy=frame.y;
+    function move(ev){ frame.x=ox+(ev.clientX-sx); frame.y=oy+(ev.clientY-sy); applyFrame(); }
+    function up(){ clock.classList.remove('dragging'); saveFrame(); document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); }
+    document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+  }
+  function startResize(e, dir){
+    e.preventDefault(); e.stopPropagation(); clock.classList.add('resizing');
+    var sx=e.clientX, sy=e.clientY, o={x:frame.x,y:frame.y,w:frame.w,h:frame.h};
+    function move(ev){
+      var dx=ev.clientX-sx, dy=ev.clientY-sy;
+      if (dir.indexOf('e')>=0){ frame.w=Math.max(MINW,o.w+dx); }
+      if (dir.indexOf('s')>=0){ frame.h=Math.max(MINH,o.h+dy); }
+      if (dir.indexOf('w')>=0){ var nw=Math.max(MINW,o.w-dx); frame.x=o.x+(o.w-nw); frame.w=nw; }
+      if (dir.indexOf('n')>=0){ var nh=Math.max(MINH,o.h-dy); frame.y=o.y+(o.h-nh); frame.h=nh; }
+      applyFrame();
+    }
+    function up(){ clock.classList.remove('resizing'); saveFrame(); document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); }
+    document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+  }
+  window.addEventListener('resize', applyFrame);
+
+  applyFrame(); syncControls(); tick();
+  setInterval(tick, 1000);
+})();
+</script>
+<script>
+(function(){
+  var root=document.getElementById('clock'); if(!root) return;
+  var btn=document.createElement('button');
+  btn.className='wreset'; btn.title='기본 크기로';
+  btn.setAttribute('aria-label','기본 크기로');
+  btn.innerHTML='<svg viewBox="0 0 24 24"><path d="M9 21H3v-6M3 21l7-7M15 3h6v6M21 3l-7 7"/></svg>';
+  btn.addEventListener('pointerdown',function(e){e.stopPropagation();});
+  btn.addEventListener('click',function(e){e.stopPropagation();try{localStorage.removeItem('nosion-clock-frame');}catch(_){}location.reload();});
+  root.appendChild(btn);
+  // 색상 선택 (검정/회색/진회색)
+  var TONES={black:'#1f1e1c', gray:'#8d8a83', dim:'#54514c'};
+  var LABEL={black:'검정', gray:'회색', dim:'진회색'};
+  var tone=document.createElement('div'); tone.className='wtone';
+  Object.keys(TONES).forEach(function(k){
+    var b=document.createElement('button'); b.setAttribute('data-tone',k); b.title=LABEL[k];
+    b.style.setProperty('--sw',TONES[k]);
+    b.addEventListener('pointerdown',function(e){e.stopPropagation();});
+    b.addEventListener('click',function(e){e.stopPropagation();setTone(k);});
+    tone.appendChild(b);
+  });
+  root.appendChild(tone);
+  function setTone(k){
+    root.style.setProperty('--digit',TONES[k]);
+    try{localStorage.setItem('nosion-clock-tone',k);}catch(_){}
+    tone.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x.getAttribute('data-tone')===k);});
+  }
+  var savedTone='black'; try{savedTone=localStorage.getItem('nosion-clock-tone')||'black';}catch(_){}
+  setTone(savedTone);
+  // 호버 표시 (리셋 + 색상)
+  var hideT;
+  function show(){clearTimeout(hideT);root.classList.add('ctl-on');}
+  function hideSoon(){hideT=setTimeout(function(){root.classList.remove('ctl-on');},260);}
+  root.addEventListener('pointerenter',show);
+  root.addEventListener('pointerleave',hideSoon);
+  btn.addEventListener('pointerenter',show); btn.addEventListener('pointerleave',hideSoon);
+  tone.addEventListener('pointerenter',show); tone.addEventListener('pointerleave',hideSoon);
+})();
+</script>
+</body>
+</html>
