@@ -80,13 +80,23 @@ body{
 .rz.corner::after{content:''; position:absolute; inset:4px; border-radius:50%; background:var(--handle); opacity:0; transition:.15s;}
 .card:hover .rz.corner::after{opacity:1;}
 
-.su{display:flex;flex-direction:column;justify-content:center;height:100%;}
-.su-arc{position:relative;flex:1;min-height:70px;margin-top:6px;}
-.su-track{position:absolute;left:4%;right:4%;bottom:0;top:6px;border:2px dashed var(--line);border-bottom:0;border-radius:200px 200px 0 0;}
-.su-sun{position:absolute;width:16px;height:16px;border-radius:50%;background:var(--ink);margin:-8px 0 0 -8px;}
-.su-row{display:flex;justify-content:space-between;margin-top:8px;flex:none;}
-.su-it .l{font-size:10.5px;color:var(--ink3);font-weight:600;}
-.su-it .v{font-size:15px;font-weight:700;letter-spacing:-.01em;}
+.su{display:flex;flex-direction:column;height:100%;}
+.su-arc{position:relative;flex:1;min-height:84px;}
+.su-arc svg{width:100%;height:100%;display:block;overflow:visible;}
+.su-horizon{stroke:var(--line);stroke-width:1.5;}
+.su-remain{fill:none;stroke:var(--line);stroke-width:3;stroke-linecap:round;}
+.su-travel{fill:none;stroke:var(--ink);stroke-width:3;stroke-linecap:round;}
+.su-times{display:flex;justify-content:space-between;align-items:flex-start;flex:none;margin-top:2px;}
+.su-times .l{font-size:11.5px;color:var(--ink3);font-weight:600;margin-bottom:3px;}
+.su-times .v{font-size:clamp(20px,8cqw,28px);font-weight:800;letter-spacing:-.02em;line-height:1;}
+.su-times .r{text-align:right;}
+.su-count{text-align:center;font-size:12.5px;font-weight:700;color:var(--ink);flex:none;margin-top:7px;}
+.su-meta{flex:none;margin-top:13px;padding-top:13px;border-top:1px solid var(--line2);display:flex;flex-direction:column;gap:8px;}
+.su-mrow{display:flex;justify-content:space-between;font-size:12.5px;align-items:baseline;}
+.su-mrow .ml{color:var(--ink3);font-weight:500;}
+.su-mrow .mv{font-weight:700;letter-spacing:-.01em;white-space:nowrap;}
+.su-foot{flex:none;text-align:center;font-size:11px;color:var(--ink3);margin-top:11px;display:flex;align-items:center;justify-content:center;gap:5px;}
+.su-foot svg{flex:none;stroke:var(--ink3);}
 
   /* 기본 크기 리셋 버튼 (테두리 바깥 오른쪽 위, 호버 시 표시) */
   .wreset{position:absolute; top:6px; right:-38px; width:28px; height:28px; border-radius:50%;
@@ -105,11 +115,28 @@ body{
 <div class="stage">
   <div class="card" id="w">
     <div class="whead">
-      <div class="wname">일출·일몰</div>
-      <div class="wsub">서울 · 오늘</div>
+      <div class="wname">오늘의 해</div>
     </div>
-    <div class="wbody" id="body"><div class="su"><div class="su-arc" id="arc"><div class="su-track"></div><div class="su-sun" id="sun"></div></div><div class="su-row"><div class="su-it"><div class="l">☀ 일출</div><div class="v mono">05:12</div></div><div class="su-it" style="text-align:right"><div class="l">일몰 ☾</div><div class="v mono">19:48</div></div></div></div></div>
-    <div class="wfoot"><span>낮 길이</span><span class="mono">14시간 36분</span></div>
+    <div class="wbody" id="body"><div class="su">
+      <div class="su-arc">
+        <svg id="arcsvg" viewBox="0 0 300 165" preserveAspectRatio="xMidYMax meet">
+          <line class="su-horizon" x1="8" y1="150" x2="292" y2="150"></line>
+          <path id="arcRemain" class="su-remain" d=""></path>
+          <path id="arcTravel" class="su-travel" d=""></path>
+          <g id="sunG"></g>
+        </svg>
+      </div>
+      <div class="su-times">
+        <div><div class="l">일출</div><div class="v mono" id="riseT">–</div></div>
+        <div class="r"><div class="l">일몰</div><div class="v mono" id="setT">–</div></div>
+      </div>
+      <div class="su-count" id="countT"></div>
+      <div class="su-meta">
+        <div class="su-mrow"><span class="ml">낮 길이</span><span class="mv mono" id="dayLen">–</span></div>
+        <div class="su-mrow"><span class="ml">남중 시각</span><span class="mv mono" id="noonT">–</span></div>
+      </div>
+      <div class="su-foot"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"></path><circle cx="12" cy="11" r="2"></circle></svg><span id="locT">위치 확인 중…</span></div>
+    </div></div>
   </div>
 </div>
 <script>
@@ -189,17 +216,99 @@ body{
 </script>
 <script>
 (function(){
-  var rise=5*60+12,set=19*60+48;var now=new Date();var cur=now.getHours()*60+now.getMinutes();
-  var t=Math.max(0,Math.min(1,(cur-rise)/(set-rise)));
-  var sun=document.getElementById('sun'),arc=document.getElementById('arc');
-  function place(){
-    var W=arc.clientWidth*0.92,H=arc.clientHeight-6;var L=arc.clientWidth*0.04;
-    var ang=Math.PI*(1-t);var cx=L+W/2+Math.cos(ang)*(W/2);var cy=6+H-Math.sin(ang)*(H);
-    sun.style.left=cx+'px';sun.style.top=cy+'px';
+  var rad=Math.PI/180;
+  function dateToJulian(d){return d.valueOf()/86400000 + 2440587.5;}
+  function julianToDate(J){return new Date((J - 2440587.5)*86400000);}
+  function sunCalc(date, lat, lng){
+    var Jdate=dateToJulian(date);
+    var n=Math.round(Jdate - 2451545.0 + 0.0008);
+    var Jstar=n - lng/360;
+    var M=(357.5291 + 0.98560028*Jstar)%360;
+    var Mr=M*rad;
+    var C=1.9148*Math.sin(Mr)+0.0200*Math.sin(2*Mr)+0.0003*Math.sin(3*Mr);
+    var lambda=((M + C + 180 + 102.9372)%360)*rad;
+    var Jtransit=2451545.0 + Jstar + 0.0053*Math.sin(Mr) - 0.0069*Math.sin(2*lambda);
+    var sinDelta=Math.sin(lambda)*Math.sin(23.44*rad);
+    var cosDelta=Math.cos(Math.asin(sinDelta));
+    var cosOmega=(Math.sin(-0.83*rad)-Math.sin(lat*rad)*sinDelta)/(Math.cos(lat*rad)*cosDelta);
+    var omega=Math.acos(Math.max(-1,Math.min(1,cosOmega)))/rad;
+    return {
+      rise:julianToDate(Jtransit - omega/360),
+      set:julianToDate(Jtransit + omega/360),
+      noon:julianToDate(Jtransit)
+    };
   }
-  place();window.addEventListener('resize',place);setTimeout(place,50);
+  function hm(d){return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}
+
+  var CX=150,CY=150,R=130;
+  function ptOnArc(t){ var ang=180*(1-t)*rad; return [CX+R*Math.cos(ang), CY-R*Math.sin(ang)]; }
+  function arcPath(t0,t1){
+    var p0=ptOnArc(t0),p1=ptOnArc(t1);
+    return 'M'+p0[0].toFixed(1)+' '+p0[1].toFixed(1)+' A'+R+' '+R+' 0 0 1 '+p1[0].toFixed(1)+' '+p1[1].toFixed(1);
+  }
+  function sunGlyph(x,y,t){
+    // 고도(정오=1, 일출/일몰=0)에 따라 반짝임이 변화
+    var alt=Math.max(0,Math.min(1,Math.sin(Math.max(0,Math.min(1,t))*Math.PI)));
+    var core=4.5+alt*2;           // 해 크기
+    var rayIn=core+2.5;           // 광선 시작
+    var rayOut=rayIn+2.5+alt*6;   // 광선 끝 (정오에 길게)
+    var op=(0.4+alt*0.6).toFixed(2); // 광선 밝기
+    var sw=(1.6+alt*0.7).toFixed(2);
+    var rays='';
+    for(var i=0;i<8;i++){var a=i*45*rad;rays+='<line x1="'+(x+Math.cos(a)*rayIn).toFixed(1)+'" y1="'+(y+Math.sin(a)*rayIn).toFixed(1)+'" x2="'+(x+Math.cos(a)*rayOut).toFixed(1)+'" y2="'+(y+Math.sin(a)*rayOut).toFixed(1)+'"/>';}
+    // 정오 근처엔 대각선 보조 광선 추가(더 반짝)
+    var rays2='';
+    if(alt>0.55){var op2=((alt-0.55)*1.3).toFixed(2);for(var j=0;j<8;j++){var a2=(j*45+22.5)*rad;rays2+='<line x1="'+(x+Math.cos(a2)*rayIn).toFixed(1)+'" y1="'+(y+Math.sin(a2)*rayIn).toFixed(1)+'" x2="'+(x+Math.cos(a2)*(rayIn+3+alt*3)).toFixed(1)+'" y2="'+(y+Math.sin(a2)*(rayIn+3+alt*3)).toFixed(1)+'"/>';}rays2='<g stroke="var(--ink)" stroke-width="'+sw+'" stroke-linecap="round" opacity="'+op2+'">'+rays2+'</g>';}
+    return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+core.toFixed(1)+'" fill="var(--card)" stroke="var(--ink)" stroke-width="2"/><g stroke="var(--ink)" stroke-width="'+sw+'" stroke-linecap="round" opacity="'+op+'">'+rays+'</g>'+rays2;
+  }
+  function dot(x,y){ return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="5" fill="var(--ink4)"/>'; }
+
+  function render(lat,lng,place){
+    var now=new Date();
+    var s=sunCalc(now, lat, lng);
+    document.getElementById('riseT').textContent=hm(s.rise);
+    document.getElementById('setT').textContent=hm(s.set);
+    document.getElementById('noonT').textContent=hm(s.noon);
+    var lenMin=Math.round((s.set-s.rise)/60000); if(lenMin<0)lenMin+=1440;
+    document.getElementById('dayLen').textContent=Math.floor(lenMin/60)+'시간 '+(lenMin%60)+'분';
+    var t=(now.getTime()-s.rise.getTime())/(s.set.getTime()-s.rise.getTime());
+    var tc=Math.max(0,Math.min(1,t));
+    var sp=ptOnArc(tc);
+    document.getElementById('arcRemain').setAttribute('d',arcPath(0,1));
+    document.getElementById('arcTravel').setAttribute('d',arcPath(0,tc));
+    var isDay=(t>=0&&t<=1);
+    document.getElementById('sunG').innerHTML=isDay?sunGlyph(sp[0],sp[1],t):dot(ptOnArc(t<0?0:1)[0],ptOnArc(t<0?0:1)[1]);
+    var cEl=document.getElementById('countT');
+    if(t<0){var m=Math.round((s.rise-now)/60000);cEl.textContent='일출까지 '+Math.floor(m/60)+'시간 '+(m%60)+'분';}
+    else if(t>1){cEl.textContent='해가 졌어요';}
+    else {var m2=Math.round((s.set-now)/60000);cEl.textContent='일몰까지 '+Math.floor(m2/60)+'시간 '+(m2%60)+'분';}
+    var DOW=['일','월','화','수','목','금','토'];
+    var dstr=(now.getMonth()+1)+'월 '+now.getDate()+'일 ('+DOW[now.getDay()]+')';
+    document.getElementById('locT').textContent=(place||'현재 위치')+' · '+dstr;
+  }
+
+  var CURLAT=37.5665,CURLNG=126.9780,CURPLACE='서울특별시';
+  function go(lat,lng,place){CURLAT=lat;CURLNG=lng;CURPLACE=place;render(lat,lng,place);}
+  function reverseName(lat,lng,cb){
+    fetch('https://nominatim.openstreetmap.org/reverse?format=json&zoom=10&lat='+lat+'&lon='+lng+'&accept-language=ko')
+      .then(function(r){return r.json();}).then(function(j){var a=j.address||{};cb(a.city||a.town||a.county||a.state||null);}).catch(function(){cb(null);});
+  }
+  function ipFallback(){
+    fetch('https://ipapi.co/json/').then(function(r){return r.json();}).then(function(j){
+      if(j&&j.latitude){go(j.latitude,j.longitude,j.city||j.region||'현재 위치');}
+      else{go(37.5665,126.9780,'서울특별시');}
+    }).catch(function(){go(37.5665,126.9780,'서울특별시');});
+  }
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(function(pos){
+      var la=pos.coords.latitude,lo=pos.coords.longitude;
+      CURLAT=la;CURLNG=lo;render(la,lo,'현재 위치');
+      reverseName(la,lo,function(nm){go(la,lo,nm||'현재 위치');});
+    },function(){ipFallback();},{timeout:8000,maximumAge:600000});
+  } else { ipFallback(); }
+  setInterval(function(){render(CURLAT,CURLNG,CURPLACE);},60000);
 })();
-NosionFrame.init({ card: document.getElementById('w'), key:'nosion-sunrise-frame', minW:250, minH:200, defaultW:340, defaultH:240 });
+NosionFrame.init({ card: document.getElementById('w'), key:'nosion-sunrise-frame', minW:260, minH:280, defaultW:330, defaultH:310 });
 </script>
 <script>
 (function(){
